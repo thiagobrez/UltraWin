@@ -1,0 +1,32 @@
+name: UltraWin
+options:
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+targets:
+  UltraWin:
+    type: application
+    platform: macOS
+    sources:
+      - path: UltraWin
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.thiagobrez.UltraWin
+        PRODUCT_NAME: UltraWin
+        INFOPLIST_FILE: UltraWin/Info.plist
+        SWIFT_OBJC_BRIDGING_HEADER: UltraWin/UltraWin-Bridging-Header.h
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "Developer ID Application: Thiago Brezinski (R4X9KNQ7VL)"
+        ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_APP_SANDBOX: NO
+        COMBINE_HIDPI_IMAGES: YES
+schemes:
+  UltraWin:
+    build:
+      targets:
+        UltraWin: all
+    run:
+      config: Debug
