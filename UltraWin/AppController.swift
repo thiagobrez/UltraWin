@@ -70,6 +70,16 @@ final class AppController: NSObject {
 
     // MARK: - Actions
 
+    /// Hotkey behavior: when a region is being shared, pressing the hotkey stops
+    /// it; otherwise it starts region selection. Effectively a toggle.
+    func toggleRegion() {
+        if session != nil {
+            stopSharing()
+        } else {
+            selectRegion()
+        }
+    }
+
     func selectRegion() {
         guard !selection.isActive else { return }
         guard ensureScreenRecordingAccess() else { return }
@@ -109,7 +119,7 @@ final class AppController: NSObject {
         HotKeyCenter.shared.unregister(id: hotKeyID)
         guard let combo = hotKeyCombo else { return }
         let registered = HotKeyCenter.shared.register(id: hotKeyID, combo: combo) { [weak self] in
-            self?.selectRegion()
+            self?.toggleRegion()
         }
         if !registered {
             NSLog("UltraWin: failed to register hotkey \(combo.displayString)")
