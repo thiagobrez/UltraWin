@@ -3,7 +3,9 @@ import AppKit
 /// On-screen indication of the shared region: a click-through window dims
 /// everything outside the region, and small interactive windows form a frame —
 /// edge strips move the region, corner handles resize it. Everything inside
-/// the region stays fully interactive because there is no window over it.
+/// the region stays fully interactive because the interior window ignores
+/// mouse events — except while ⌘ is held, when it captures drags so the
+/// whole region can be moved from anywhere inside it.
 @MainActor
 final class HighlightOverlayController {
     enum Phase { case dragging, ended }
@@ -37,6 +39,7 @@ final class HighlightOverlayController {
     enum HandleKind {
         case move(Edge)
         case resize(Corner)
+        case interior
     }
 
     var onRegionChange: ((CGRect, Phase) -> Void)?
@@ -47,6 +50,9 @@ final class HighlightOverlayController {
     private let dimWindow: NSWindow
     private let dimView: DimView
     private var handleWindows: [HandleWindow] = []
+    private var interiorWindow: HandleWindow?
+    private var hintWindow: NSWindow?
+    private var commandPollTimer: Timer?
     private var dragStartRegion: CGRect = .zero
     private static let minSize = CGSize(width: 160, height: 90)
     private static let edgeThickness: CGFloat = 12
@@ -70,13 +76,21 @@ final class HighlightOverlayController {
         dimWindow.contentView = dimView
         dimWindow.orderFrontRegardless()
 
-        let kinds: [HandleKind] = Edge.allCases.map { .move($0) } + Corner.allCases.map { .resize($0) }
+        let kinds: [HandleKind] = [.interior] + Edge.allCases.map { .move($0) } + Corner.allCases.map { .resize($0) }
         for kind in kinds {
             let window = HandleWindow(kind: kind, controller: self)
+            if case .interior = kind { interiorWindow = window }
             handleWindows.append(window)
             window.orderFrontRegardless()
         }
         layout()
+
+        // The interior only becomes draggable while ⌘ is held. There is no
+        // permission-free global key monitor, so poll the hardware state.
+        commandPollTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.updateInteriorDraggability() }
+        }
+        showMoveHint()
     }
 
     func setDimAlpha(_ alpha: CGFloat) {
@@ -90,6 +104,7 @@ final class HighlightOverlayController {
         dimWindow.setFrame(newScreen.frame, display: true)
         dimView.frame = NSRect(origin: .zero, size: newScreen.frame.size)
         layout()
+        showMoveHint()
     }
 
     func setRegion(_ newRegion: CGRect) {
@@ -98,17 +113,23 @@ final class HighlightOverlayController {
     }
 
     func close() {
+        commandPollTimer?.invalidate()
+        commandPollTimer = nil
+        hintWindow?.close()
+        hintWindow = nil
         dimWindow.close()
         for window in handleWindows {
             window.close()
         }
         handleWindows = []
+        interiorWindow = nil
     }
 
     // MARK: - Dragging (called by HandleView)
 
     func beginDrag() {
         dragStartRegion = region
+        fadeOutHint()
     }
 
     func dragUpdated(kind: HandleKind, delta: CGVector, phase: Phase) {
@@ -120,7 +141,7 @@ final class HighlightOverlayController {
     private func proposedRegion(for kind: HandleKind, delta: CGVector) -> CGRect {
         let bounds = screen.frame
         switch kind {
-        case .move:
+        case .move, .interior:
             var origin = CGPoint(x: dragStartRegion.minX + delta.dx, y: dragStartRegion.minY + delta.dy)
             origin.x = min(max(origin.x, bounds.minX), bounds.maxX - dragStartRegion.width)
             origin.y = min(max(origin.y, bounds.minY), bounds.maxY - dragStartRegion.height)
@@ -156,6 +177,72 @@ final class HighlightOverlayController {
         }
     }
 
+    // MARK: - ⌘ drag from inside
+
+    private func updateInteriorDraggability() {
+        guard let interior = interiorWindow else { return }
+        let shouldIgnore = !NSEvent.modifierFlags.contains(.command)
+        guard interior.ignoresMouseEvents != shouldIgnore else { return }
+        interior.ignoresMouseEvents = shouldIgnore
+        if let view = interior.contentView {
+            interior.invalidateCursorRects(for: view)
+        }
+        if interior.frame.contains(NSEvent.mouseLocation) {
+            (shouldIgnore ? NSCursor.arrow : NSCursor.openHand).set()
+        }
+    }
+
+    // MARK: - Move hint
+
+    private func showMoveHint() {
+        hintWindow?.close()
+        hintWindow = nil
+        let view = MoveHintView()
+        let size = view.hintSize
+        let window = NSWindow(
+            contentRect: CGRect(origin: .zero, size: size),
+            styleMask: .borderless,
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 2)
+        window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
+        window.contentView = view
+        hintWindow = window
+        layoutHint()
+        window.orderFrontRegardless()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            guard let self, self.hintWindow === window else { return }
+            self.fadeOutHint()
+        }
+    }
+
+    private func fadeOutHint() {
+        guard let window = hintWindow else { return }
+        hintWindow = nil
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.5
+            window.animator().alphaValue = 0
+        }, completionHandler: {
+            window.close()
+        })
+    }
+
+    private func layoutHint() {
+        guard let window = hintWindow else { return }
+        let size = window.frame.size
+        window.setFrameOrigin(CGPoint(
+            x: region.midX - size.width / 2,
+            y: region.midY - size.height / 2
+        ))
+    }
+
     // MARK: - Layout
 
     private func layout() {
@@ -164,6 +251,7 @@ final class HighlightOverlayController {
         for window in handleWindows {
             window.setFrame(frame(for: window.kind), display: true)
         }
+        layoutHint()
     }
 
     private func frame(for kind: HandleKind) -> CGRect {
@@ -182,6 +270,8 @@ final class HighlightOverlayController {
         case .resize(let corner):
             let p = corner.point(in: r)
             return CGRect(x: p.x - c / 2, y: p.y - c / 2, width: c, height: c)
+        case .interior:
+            return r.insetBy(dx: t / 2, dy: t / 2)
         }
     }
 }
@@ -203,7 +293,14 @@ private final class HandleWindow: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
+        if case .interior = kind {
+            // Click-through until ⌘ is held (toggled by the controller), and
+            // below the frame so edges and corners keep priority.
+            ignoresMouseEvents = true
+            level = .floating
+        } else {
+            level = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
+        }
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         contentView = HandleView(kind: kind, controller: controller)
     }
@@ -227,7 +324,7 @@ private final class HandleView: NSView {
 
     override func resetCursorRects() {
         switch kind {
-        case .move: addCursorRect(bounds, cursor: .openHand)
+        case .move, .interior: addCursorRect(bounds, cursor: .openHand)
         case .resize: addCursorRect(bounds, cursor: .crosshair)
         }
     }
@@ -270,7 +367,31 @@ private final class HandleView: NSView {
             NSColor.white.setStroke()
             path.lineWidth = 1.5
             path.stroke()
+        case .interior:
+            break
         }
+    }
+}
+
+private final class MoveHintView: NSView {
+    private let text = "Hold ⌘ and drag to move"
+    private let attributes: [NSAttributedString.Key: Any] = [
+        .font: NSFont.systemFont(ofSize: 15, weight: .medium),
+        .foregroundColor: NSColor.white.withAlphaComponent(0.95),
+    ]
+    private let padding = CGSize(width: 16, height: 9)
+
+    var hintSize: CGSize {
+        let size = text.size(withAttributes: attributes)
+        return CGSize(width: size.width + padding.width * 2, height: size.height + padding.height * 2)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSColor.black.withAlphaComponent(0.65).setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 8, yRadius: 8).fill()
+        let size = text.size(withAttributes: attributes)
+        let origin = CGPoint(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2)
+        text.draw(at: origin, withAttributes: attributes)
     }
 }
 
