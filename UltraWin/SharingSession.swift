@@ -28,7 +28,9 @@ final class SharingSession {
     }
 
     init(region: CGRect, screen: NSScreen, aspectLocked: Bool, dimAlpha: CGFloat) async throws {
-        self.region = region.integral
+        self.region = HighlightOverlayController.clampRegion(
+            region, to: screen, aspectRatio: aspectLocked ? 16.0 / 9.0 : nil
+        )
         self.screen = screen
         self.aspectLocked = aspectLocked
         // Match the source screen: HiDPI virtual display for Retina sources,
@@ -83,7 +85,9 @@ final class SharingSession {
     func updateRegion(_ rect: CGRect, on newScreen: NSScreen) async throws {
         let screenChanged = newScreen != screen
         screen = newScreen
-        region = rect.integral
+        region = HighlightOverlayController.clampRegion(
+            rect, to: newScreen, aspectRatio: aspectLocked ? 16.0 / 9.0 : nil
+        )
         overlay?.move(to: newScreen, region: region)
         await applyOutputSizeIfChanged()
         if screenChanged {

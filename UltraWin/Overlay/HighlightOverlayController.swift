@@ -138,8 +138,39 @@ final class HighlightOverlayController {
         onRegionChange?(region, phase)
     }
 
+    /// Handles sit fully inside the region, so the region itself can reach
+    /// the screen edges — except the top: the system refuses to place windows
+    /// over the menu bar, and a handle shoved off the border misaligns with
+    /// the region (the line appears to run past the knobs).
+    private static func interactionBounds(for screen: NSScreen) -> CGRect {
+        var bounds = screen.frame
+        let menuBarTop = screen.visibleFrame.maxY
+        if menuBarTop < bounds.maxY {
+            bounds.size.height = menuBarTop - bounds.minY
+        }
+        return bounds
+    }
+
+    static func clampRegion(_ region: CGRect, to screen: NSScreen, aspectRatio: CGFloat? = nil) -> CGRect {
+        let bounds = interactionBounds(for: screen)
+        var size = CGSize(
+            width: min(region.width, bounds.width),
+            height: min(region.height, bounds.height)
+        )
+        if let ratio = aspectRatio {
+            size.width = min(size.width, size.height * ratio)
+            size.height = size.width / ratio
+        }
+        return CGRect(
+            x: min(max(region.minX, bounds.minX), bounds.maxX - size.width),
+            y: min(max(region.minY, bounds.minY), bounds.maxY - size.height),
+            width: size.width,
+            height: size.height
+        ).integral
+    }
+
     private func proposedRegion(for kind: HandleKind, delta: CGVector) -> CGRect {
-        let bounds = screen.frame
+        let bounds = Self.interactionBounds(for: screen)
         switch kind {
         case .move, .interior:
             var origin = CGPoint(x: dragStartRegion.minX + delta.dx, y: dragStartRegion.minY + delta.dy)
@@ -254,24 +285,30 @@ final class HighlightOverlayController {
         layoutHint()
     }
 
+    // Handles live just inside the region so they never have to be placed
+    // past the screen edge (which would get them shoved off the border).
     private func frame(for kind: HandleKind) -> CGRect {
         let t = Self.edgeThickness
         let c = Self.cornerSize
         let r = region
         switch kind {
         case .move(.top):
-            return CGRect(x: r.minX + c / 2, y: r.maxY - t / 2, width: max(1, r.width - c), height: t)
+            return CGRect(x: r.minX + c, y: r.maxY - t, width: max(1, r.width - 2 * c), height: t)
         case .move(.bottom):
-            return CGRect(x: r.minX + c / 2, y: r.minY - t / 2, width: max(1, r.width - c), height: t)
+            return CGRect(x: r.minX + c, y: r.minY, width: max(1, r.width - 2 * c), height: t)
         case .move(.left):
-            return CGRect(x: r.minX - t / 2, y: r.minY + c / 2, width: t, height: max(1, r.height - c))
+            return CGRect(x: r.minX, y: r.minY + c, width: t, height: max(1, r.height - 2 * c))
         case .move(.right):
-            return CGRect(x: r.maxX - t / 2, y: r.minY + c / 2, width: t, height: max(1, r.height - c))
+            return CGRect(x: r.maxX - t, y: r.minY + c, width: t, height: max(1, r.height - 2 * c))
         case .resize(let corner):
             let p = corner.point(in: r)
-            return CGRect(x: p.x - c / 2, y: p.y - c / 2, width: c, height: c)
+            return CGRect(
+                x: p.x == r.minX ? r.minX : r.maxX - c,
+                y: p.y == r.minY ? r.minY : r.maxY - c,
+                width: c, height: c
+            )
         case .interior:
-            return r.insetBy(dx: t / 2, dy: t / 2)
+            return r.insetBy(dx: t, dy: t)
         }
     }
 }
@@ -348,20 +385,39 @@ private final class HandleView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
+        let lineWidth: CGFloat = 2
+        // The window sits just inside the region, so the border line runs
+        // along its outer side(s).
+        func borderLine(_ edge: HighlightOverlayController.Edge) -> CGRect {
+            switch edge {
+            case .top: return CGRect(x: 0, y: bounds.maxY - lineWidth, width: bounds.width, height: lineWidth)
+            case .bottom: return CGRect(x: 0, y: 0, width: bounds.width, height: lineWidth)
+            case .left: return CGRect(x: 0, y: 0, width: lineWidth, height: bounds.height)
+            case .right: return CGRect(x: bounds.maxX - lineWidth, y: 0, width: lineWidth, height: bounds.height)
+            }
+        }
+
         NSColor.controlAccentColor.setFill()
         switch kind {
         case .move(let edge):
-            let lineWidth: CGFloat = 2
-            let line: CGRect
-            switch edge {
-            case .top, .bottom:
-                line = CGRect(x: 0, y: bounds.midY - lineWidth / 2, width: bounds.width, height: lineWidth)
-            case .left, .right:
-                line = CGRect(x: bounds.midX - lineWidth / 2, y: 0, width: lineWidth, height: bounds.height)
+            borderLine(edge).fill()
+        case .resize(let corner):
+            let outerEdges: (HighlightOverlayController.Edge, HighlightOverlayController.Edge)
+            switch corner {
+            case .topLeft: outerEdges = (.top, .left)
+            case .topRight: outerEdges = (.top, .right)
+            case .bottomLeft: outerEdges = (.bottom, .left)
+            case .bottomRight: outerEdges = (.bottom, .right)
             }
-            line.fill()
-        case .resize:
-            let knob = bounds.insetBy(dx: 4, dy: 4)
+            borderLine(outerEdges.0).fill()
+            borderLine(outerEdges.1).fill()
+            // Centered in the corner window so the knob's white border keeps a
+            // clean gap from the border lines instead of being clipped by them.
+            let knobSize: CGFloat = 12
+            let knob = bounds.insetBy(
+                dx: (bounds.width - knobSize) / 2,
+                dy: (bounds.height - knobSize) / 2
+            )
             let path = NSBezierPath(roundedRect: knob, xRadius: 3, yRadius: 3)
             path.fill()
             NSColor.white.setStroke()
