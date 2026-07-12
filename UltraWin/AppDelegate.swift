@@ -10,5 +10,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if CommandLine.arguments.contains("--test-region") {
             controller.startTestSession()
         }
+        if CommandLine.arguments.contains("--open-preferences") {
+            controller.showPreferences()
+        }
     }
 }

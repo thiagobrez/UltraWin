@@ -29,10 +29,14 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             )
             status.isEnabled = false
             menu.addItem(status)
-            menu.addItem(makeItem(title: "Re-select Region…", action: #selector(selectRegion)))
+            let reselect = makeItem(title: "Re-select Region…", action: #selector(selectRegion))
+            applyShortcut(to: reselect)
+            menu.addItem(reselect)
             menu.addItem(makeItem(title: "Stop Sharing", action: #selector(stopSharing)))
         } else {
-            menu.addItem(makeItem(title: "Select Region to Share…", action: #selector(selectRegion)))
+            let select = makeItem(title: "Select Region to Share…", action: #selector(selectRegion))
+            applyShortcut(to: select)
+            menu.addItem(select)
         }
 
         menu.addItem(.separator())
@@ -54,6 +58,11 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(dimItem)
 
         menu.addItem(.separator())
+        let preferences = makeItem(title: "Preferences…", action: #selector(showPreferences))
+        preferences.keyEquivalent = ","
+        preferences.keyEquivalentModifierMask = .command
+        menu.addItem(preferences)
+
         let quit = NSMenuItem(title: "Quit UltraWin", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.target = NSApp
         menu.addItem(quit)
@@ -65,12 +74,25 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         return item
     }
 
+    /// Shows the current global hotkey next to the region-selection item as a
+    /// reminder. Re-triggering via the menu is harmless: `selectRegion()`
+    /// ignores the call if a selection is already active.
+    private func applyShortcut(to item: NSMenuItem) {
+        guard let combo = app.hotKeyCombo, let keyEquivalent = combo.menuKeyEquivalent else { return }
+        item.keyEquivalent = keyEquivalent
+        item.keyEquivalentModifierMask = combo.modifiers
+    }
+
     @objc private func selectRegion() {
         app.selectRegion()
     }
 
     @objc private func stopSharing() {
         app.stopSharing()
+    }
+
+    @objc private func showPreferences() {
+        app.showPreferences()
     }
 
     @objc private func toggleAspectLock() {
