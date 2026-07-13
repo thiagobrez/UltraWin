@@ -24,6 +24,10 @@ final class AppController: NSObject {
 
     private var statusItem: StatusItemController!
     private let selection = RegionSelectionController()
+    /// One persistent virtual display, attached at launch and reused by every
+    /// session: plugging/unplugging a display makes macOS reconfigure all
+    /// screens (a visible flicker), so pay that cost once instead of per share.
+    private let virtualDisplay = VirtualDisplayController()
     private(set) var session: SharingSession?
     private var preferencesWindowController: PreferencesWindowController?
     private let hotKeyID: UInt32 = 1
@@ -66,6 +70,16 @@ final class AppController: NSObject {
         super.init()
         statusItem = StatusItemController(app: self)
         registerHotKey()
+        Task { @MainActor [virtualDisplay] in
+            await VirtualDisplayController.suppressingReconfigurationFade {
+                _ = virtualDisplay.ensureReady(
+                    pointSize: CGSize(width: 1920, height: 1080),
+                    hiDPI: (NSScreen.main?.backingScaleFactor ?? 2) > 1.5
+                )
+                // Idle displays stay mirrored so the cursor can't reach them.
+                virtualDisplay.setMirroring(true)
+            }
+        }
     }
 
     // MARK: - Actions
@@ -85,8 +99,8 @@ final class AppController: NSObject {
         guard ensureScreenRecordingAccess() else { return }
         // Never offer the (invisible) virtual display as a selection target.
         var excluded: Set<CGDirectDisplayID> = []
-        if let session {
-            excluded.insert(session.virtualDisplayID)
+        if virtualDisplay.isCreated {
+            excluded.insert(virtualDisplay.displayID)
         }
         selection.begin(aspectRatio: aspectLocked ? 16.0 / 9.0 : nil, excludingDisplayIDs: excluded) { [weak self] result in
             guard let self, let result else { return }
@@ -101,6 +115,15 @@ final class AppController: NSObject {
         self.session = nil
         Task { @MainActor in
             await session.stop()
+            await parkVirtualDisplayMirrored()
+        }
+    }
+
+    /// Puts the idle virtual display back into mirror mode so the cursor can't
+    /// wander onto it between sessions.
+    private func parkVirtualDisplayMirrored() async {
+        await VirtualDisplayController.suppressingReconfigurationFade {
+            virtualDisplay.setMirroring(true)
         }
     }
 
@@ -153,6 +176,10 @@ final class AppController: NSObject {
     // MARK: - Session lifecycle
 
     private func startOrUpdateSession(rect: CGRect, screen: NSScreen) async {
+        // The (frozen) selection overlay keeps dimming the screen through the
+        // whole session startup — display mode changes, capture spin-up — and
+        // only fades out once the share is live, so nothing underneath is ever
+        // exposed mid-setup. On failure it's dropped immediately instead.
         do {
             if let session, session.aspectLocked == aspectLocked {
                 try await session.updateRegion(rect, on: screen)
@@ -161,16 +188,27 @@ final class AppController: NSObject {
                     self.session = nil
                     await session.stop()
                 }
+                let ratio: CGFloat? = aspectLocked ? 16.0 / 9.0 : nil
+                let overlay = HighlightOverlayController(
+                    region: HighlightOverlayController.clampRegion(rect, to: screen, aspectRatio: ratio),
+                    screen: screen,
+                    dimAlpha: dimLevel.alpha,
+                    aspectRatio: ratio
+                )
                 let session = try await SharingSession(
-                    region: rect,
                     screen: screen,
                     aspectLocked: aspectLocked,
-                    dimAlpha: dimLevel.alpha
+                    overlay: overlay,
+                    virtualDisplay: virtualDisplay
                 )
                 session.onStopped = { [weak self] error in
-                    self?.session = nil
+                    guard let self else { return }
+                    self.session = nil
+                    Task { @MainActor in
+                        await self.parkVirtualDisplayMirrored()
+                    }
                     if let error {
-                        self?.showAlert(
+                        self.showAlert(
                             title: "Sharing stopped",
                             message: "The screen capture stopped unexpectedly: \(error.localizedDescription)"
                         )
@@ -178,8 +216,11 @@ final class AppController: NSObject {
                 }
                 self.session = session
             }
+            selection.dismiss(fadeDuration: 0.25)
         } catch {
             session = nil
+            selection.dismiss()
+            await parkVirtualDisplayMirrored()
             showAlert(title: "Could not start sharing", message: error.localizedDescription)
         }
     }

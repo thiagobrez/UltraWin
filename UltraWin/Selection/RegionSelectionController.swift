@@ -37,23 +37,48 @@ final class RegionSelectionController {
         keyPanel.makeKeyAndOrderFront(nil)
     }
 
+    /// Reports the selected region but leaves the overlay on screen. The caller
+    /// puts the replacement overlay up and then calls `dismiss()`, so the screen
+    /// stays dimmed across the whole handoff and never flashes undimmed.
     func finish(rect: CGRect, on screen: NSScreen) {
-        teardown(result: (rect, screen))
+        for panel in panels { panel.stopInteraction() }
+        let callback = completion
+        completion = nil
+        callback?((rect, screen))
     }
 
     func cancel() {
-        teardown(result: nil)
-    }
-
-    private func teardown(result: (rect: CGRect, screen: NSScreen)?) {
-        for panel in panels {
-            panel.orderOut(nil)
-            panel.close()
-        }
-        panels = []
+        dismiss()
         let callback = completion
         completion = nil
-        callback?(result)
+        callback?(nil)
+    }
+
+    /// Tears down the selection overlay. Safe to call more than once.
+    /// A non-zero `fadeDuration` fades the panels out instead of dropping them:
+    /// the old dim stays composited on top of the session's own overlay for the
+    /// whole fade, so the handoff can never show an undimmed frame even if
+    /// window ordering isn't atomic across the two windows.
+    func dismiss(fadeDuration: TimeInterval = 0) {
+        let closing = panels
+        panels = []
+        guard fadeDuration > 0 else {
+            for panel in closing {
+                panel.orderOut(nil)
+                panel.close()
+            }
+            return
+        }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = fadeDuration
+            for panel in closing {
+                panel.animator().alphaValue = 0
+            }
+        }, completionHandler: {
+            for panel in closing {
+                panel.close()
+            }
+        })
     }
 }
 
@@ -84,6 +109,14 @@ private final class SelectionPanel: NSPanel {
         makeFirstResponder(view)
     }
 
+    /// Freezes the panel once a selection is committed: it keeps dimming the
+    /// screen during the handoff but no longer reacts to the mouse or Esc, so
+    /// the bridge overlay can't be torn down early.
+    func stopInteraction() {
+        ignoresMouseEvents = true
+        (contentView as? SelectionView)?.isFrozen = true
+    }
+
     override var canBecomeKey: Bool { true }
 }
 
@@ -93,6 +126,8 @@ private final class SelectionView: NSView {
     private unowned let controller: RegionSelectionController
     private var dragStart: CGPoint?
     private var selectionRect: CGRect = .zero
+    /// Set once the selection is committed; the view then only dims and ignores input.
+    var isFrozen = false
 
     init(frame: NSRect, aspectRatio: CGFloat?, screen: NSScreen, controller: RegionSelectionController) {
         self.aspectRatio = aspectRatio
@@ -112,7 +147,7 @@ private final class SelectionView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { // Esc
+        if !isFrozen, event.keyCode == 53 { // Esc
             controller.cancel()
         } else {
             super.keyDown(with: event)
@@ -120,6 +155,7 @@ private final class SelectionView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        guard !isFrozen else { return }
         window?.makeKey()
         dragStart = convert(event.locationInWindow, from: nil)
         selectionRect = .zero

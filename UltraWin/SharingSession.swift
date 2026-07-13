@@ -10,7 +10,9 @@ final class SharingSession {
     private(set) var screen: NSScreen
     let aspectLocked: Bool
     private let pixelScale: CGFloat
-    private let virtualDisplay = VirtualDisplayController()
+    /// Shared with AppController: the display stays attached across sessions so
+    /// starting a share never triggers the display-reconfiguration flicker.
+    private let virtualDisplay: VirtualDisplayController
     private let capture = RegionCaptureEngine()
     private var renderWindow: VirtualScreenWindow?
     private var overlay: HighlightOverlayController?
@@ -19,37 +21,44 @@ final class SharingSession {
     /// (e.g. permission revoked, display unplugged).
     var onStopped: ((Error?) -> Void)?
 
-    var virtualDisplayID: CGDirectDisplayID { virtualDisplay.displayID }
-
     var outputPointSize: CGSize {
         aspectLocked
             ? CGSize(width: 1920, height: 1080)
             : CGSize(width: region.width.rounded(), height: region.height.rounded())
     }
 
-    init(region: CGRect, screen: NSScreen, aspectLocked: Bool, dimAlpha: CGFloat) async throws {
-        self.region = HighlightOverlayController.clampRegion(
-            region, to: screen, aspectRatio: aspectLocked ? 16.0 / 9.0 : nil
-        )
+    /// `overlay` is created by the caller (already dimming the region) so the
+    /// on-screen dim can hand off from the selection overlay without the screen
+    /// flashing undimmed. It must exist before the capture filter is built, so
+    /// our app is present in the shareable content and gets excluded.
+    init(
+        screen: NSScreen,
+        aspectLocked: Bool,
+        overlay: HighlightOverlayController,
+        virtualDisplay: VirtualDisplayController
+    ) async throws {
+        self.region = overlay.region
         self.screen = screen
         self.aspectLocked = aspectLocked
         // Match the source screen: HiDPI virtual display for Retina sources,
         // 1x for regular ultrawides (avoids pointless upscaling).
         self.pixelScale = screen.backingScaleFactor > 1.5 ? 2 : 1
-
-        // The overlay must exist before the capture filter is built so our app
-        // is present in the shareable content and gets excluded.
-        let overlay = HighlightOverlayController(
-            region: self.region,
-            screen: screen,
-            dimAlpha: dimAlpha,
-            aspectRatio: aspectLocked ? 16.0 / 9.0 : nil
-        )
         self.overlay = overlay
+        self.virtualDisplay = virtualDisplay
 
-        guard virtualDisplay.create(name: "UltraWin Display", pointSize: outputPointSize, hiDPI: pixelScale == 2),
-              let virtualScreen = await NSScreen.waitForScreen(displayID: virtualDisplay.displayID)
-        else {
+        let virtualScreen = await VirtualDisplayController.suppressingReconfigurationFade { () -> NSScreen? in
+            // Extend the idle (mirrored) display so it can show its own content;
+            // this also parks it at the bottom-right corner of the arrangement.
+            virtualDisplay.setMirroring(false)
+            guard virtualDisplay.ensureReady(pointSize: outputPointSize, hiDPI: pixelScale == 2)
+            else { return nil }
+            return await NSScreen.waitForScreen(
+                displayID: virtualDisplay.displayID,
+                pointSize: outputPointSize,
+                timeout: 3
+            )
+        }
+        guard let virtualScreen else {
             teardownUI()
             throw UltraWinError.virtualDisplayFailed
         }
@@ -62,7 +71,6 @@ final class SharingSession {
         }
         capture.onStopped = { [weak self] error in
             self?.teardownUI()
-            self?.virtualDisplay.destroy()
             self?.onStopped?(error)
         }
 
@@ -70,7 +78,6 @@ final class SharingSession {
             try await capture.start(geometry: currentGeometry())
         } catch {
             teardownUI()
-            virtualDisplay.destroy()
             throw error
         }
 
@@ -102,11 +109,12 @@ final class SharingSession {
         overlay?.setDimAlpha(alpha)
     }
 
+    /// The virtual display intentionally stays attached (owned by AppController)
+    /// so the next session can reuse it without a reconfiguration flicker.
     func stop() async {
         capture.onStopped = nil
         teardownUI()
         await capture.stop()
-        virtualDisplay.destroy()
     }
 
     // MARK: - Private
@@ -124,7 +132,9 @@ final class SharingSession {
     /// apply the new mode and follow the (possibly re-framed) virtual screen.
     private func applyOutputSizeIfChanged() async {
         guard !aspectLocked, virtualDisplay.currentModePointSize != outputPointSize else { return }
-        virtualDisplay.applyMode(pointSize: outputPointSize, hiDPI: pixelScale == 2)
+        await VirtualDisplayController.suppressingReconfigurationFade {
+            _ = virtualDisplay.applyMode(pointSize: outputPointSize, hiDPI: pixelScale == 2)
+        }
         if let virtualScreen = await NSScreen.waitForScreen(
             displayID: virtualDisplay.displayID,
             pointSize: outputPointSize,
