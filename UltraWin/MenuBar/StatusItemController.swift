@@ -29,10 +29,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             )
             status.isEnabled = false
             menu.addItem(status)
-            let reselect = makeItem(title: "Re-select Region…", action: #selector(selectRegion))
-            applyShortcut(to: reselect)
-            menu.addItem(reselect)
-            menu.addItem(makeItem(title: "Stop Sharing", action: #selector(stopSharing)))
+            menu.addItem(makeItem(title: "Re-select Region…", action: #selector(selectRegion)))
+            let stop = makeItem(title: "Stop Sharing", action: #selector(stopSharing))
+            applyShortcut(to: stop)
+            menu.addItem(stop)
         } else {
             let select = makeItem(title: "Select Region to Share…", action: #selector(selectRegion))
             applyShortcut(to: select)
@@ -74,9 +74,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         return item
     }
 
-    /// Shows the current global hotkey next to the region-selection item as a
-    /// reminder. Re-triggering via the menu is harmless: `selectRegion()`
-    /// ignores the call if a selection is already active.
+    /// Shows the current global hotkey next to a menu item as a reminder. When a
+    /// session is active the hotkey stops sharing, so it's attached to the
+    /// "Stop Sharing" item; otherwise it's attached to the region-selection item.
     private func applyShortcut(to item: NSMenuItem) {
         guard let combo = app.hotKeyCombo, let keyEquivalent = combo.menuKeyEquivalent else { return }
         item.keyEquivalent = keyEquivalent
