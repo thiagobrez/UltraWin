@@ -47,6 +47,7 @@ final class HighlightOverlayController {
     private(set) var region: CGRect
     private(set) var screen: NSScreen
     private let aspectRatio: CGFloat?
+    private let stopHint: String?
     private let dimWindow: NSWindow
     private let dimView: DimView
     private var handleWindows: [HandleWindow] = []
@@ -58,10 +59,11 @@ final class HighlightOverlayController {
     private static let edgeThickness: CGFloat = 12
     private static let cornerSize: CGFloat = 20
 
-    init(region: CGRect, screen: NSScreen, dimAlpha: CGFloat, aspectRatio: CGFloat?) {
+    init(region: CGRect, screen: NSScreen, dimAlpha: CGFloat, aspectRatio: CGFloat?, stopHint: String?) {
         self.region = region
         self.screen = screen
         self.aspectRatio = aspectRatio
+        self.stopHint = stopHint
 
         dimView = DimView(frame: NSRect(origin: .zero, size: screen.frame.size))
         dimView.dimAlpha = dimAlpha
@@ -228,7 +230,7 @@ final class HighlightOverlayController {
     private func showMoveHint() {
         hintWindow?.close()
         hintWindow = nil
-        let view = MoveHintView()
+        let view = MoveHintView(stopHint: stopHint)
         let size = view.hintSize
         let window = NSWindow(
             contentRect: CGRect(origin: .zero, size: size),
@@ -248,7 +250,7 @@ final class HighlightOverlayController {
         layoutHint()
         window.orderFrontRegardless()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in
             guard let self, self.hintWindow === window else { return }
             self.fadeOutHint()
         }
@@ -430,24 +432,45 @@ private final class HandleView: NSView {
 }
 
 private final class MoveHintView: NSView {
-    private let text = "Hold ⌘ and drag to move"
+    private let lines: [String]
     private let attributes: [NSAttributedString.Key: Any] = [
         .font: NSFont.systemFont(ofSize: 15, weight: .medium),
         .foregroundColor: NSColor.white.withAlphaComponent(0.95),
     ]
     private let padding = CGSize(width: 16, height: 9)
+    private let lineSpacing: CGFloat = 4
+
+    init(stopHint: String?) {
+        var lines = ["Hold ⌘ and drag to move"]
+        if let stopHint {
+            lines.append("\(stopHint) to stop sharing")
+        }
+        self.lines = lines
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    private var lineSize: CGSize { (lines.first ?? "").size(withAttributes: attributes) }
 
     var hintSize: CGSize {
-        let size = text.size(withAttributes: attributes)
-        return CGSize(width: size.width + padding.width * 2, height: size.height + padding.height * 2)
+        let width = lines.map { $0.size(withAttributes: attributes).width }.max() ?? 0
+        let height = lineSize.height * CGFloat(lines.count) + lineSpacing * CGFloat(lines.count - 1)
+        return CGSize(width: width + padding.width * 2, height: height + padding.height * 2)
     }
 
     override func draw(_ dirtyRect: NSRect) {
         NSColor.black.withAlphaComponent(0.65).setFill()
         NSBezierPath(roundedRect: bounds, xRadius: 8, yRadius: 8).fill()
-        let size = text.size(withAttributes: attributes)
-        let origin = CGPoint(x: bounds.midX - size.width / 2, y: bounds.midY - size.height / 2)
-        text.draw(at: origin, withAttributes: attributes)
+        let lineHeight = lineSize.height
+        // Top line first: NSView is flipped-less, so start from the top edge.
+        var y = bounds.maxY - padding.height - lineHeight
+        for line in lines {
+            let size = line.size(withAttributes: attributes)
+            line.draw(at: CGPoint(x: bounds.midX - size.width / 2, y: y), withAttributes: attributes)
+            y -= lineHeight + lineSpacing
+        }
     }
 }
 

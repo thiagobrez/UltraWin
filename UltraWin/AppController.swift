@@ -193,7 +193,8 @@ final class AppController: NSObject {
                     region: HighlightOverlayController.clampRegion(rect, to: screen, aspectRatio: ratio),
                     screen: screen,
                     dimAlpha: dimLevel.alpha,
-                    aspectRatio: ratio
+                    aspectRatio: ratio,
+                    stopHint: hotKeyCombo?.spacedDisplayString
                 )
                 let session = try await SharingSession(
                     screen: screen,

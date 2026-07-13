@@ -27,6 +27,18 @@ struct KeyCombo: Equatable {
         KeyCombo.symbols(for: modifiers) + KeyCodeMap.string(for: keyCode)
     }
 
+    /// Same symbols as `displayString`, but each component separated by " + "
+    /// for prose contexts (e.g. "⌘ + ⇧ + U").
+    var spacedDisplayString: String {
+        var parts: [String] = []
+        if modifiers.contains(.control) { parts.append("⌃") }
+        if modifiers.contains(.option) { parts.append("⌥") }
+        if modifiers.contains(.shift) { parts.append("⇧") }
+        if modifiers.contains(.command) { parts.append("⌘") }
+        parts.append(KeyCodeMap.string(for: keyCode))
+        return parts.joined(separator: " + ")
+    }
+
     /// Best-effort character for an NSMenuItem key equivalent (letters/digits
     /// only); returns nil for keys NSMenu can't easily represent here.
     var menuKeyEquivalent: String? {
