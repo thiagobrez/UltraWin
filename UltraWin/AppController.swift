@@ -34,7 +34,12 @@ final class AppController: NSObject {
 
     var aspectLocked: Bool {
         get { UserDefaults.standard.bool(forKey: "aspectLocked") }
-        set { UserDefaults.standard.set(newValue, forKey: "aspectLocked") }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "aspectLocked")
+            if let session {
+                Task { @MainActor in await session.setAspectLocked(newValue) }
+            }
+        }
     }
 
     var dimLevel: DimLevel {

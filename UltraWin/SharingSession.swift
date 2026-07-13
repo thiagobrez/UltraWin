@@ -8,7 +8,7 @@ import CoreMedia
 final class SharingSession {
     private(set) var region: CGRect
     private(set) var screen: NSScreen
-    let aspectLocked: Bool
+    private(set) var aspectLocked: Bool
     private let pixelScale: CGFloat
     /// Shared with AppController: the display stays attached across sessions so
     /// starting a share never triggers the display-reconfiguration flicker.
@@ -105,6 +105,20 @@ final class SharingSession {
         }
     }
 
+    /// Toggles 16:9 snapping on the live session: re-snaps the current region,
+    /// updates the overlay so future edge drags follow the new mode, and swaps
+    /// the virtual display between a fixed 1080p and the region's own size.
+    func setAspectLocked(_ locked: Bool) async {
+        guard locked != aspectLocked else { return }
+        aspectLocked = locked
+        let ratio: CGFloat? = locked ? 16.0 / 9.0 : nil
+        region = HighlightOverlayController.clampRegion(region, to: screen, aspectRatio: ratio)
+        overlay?.setAspectRatio(ratio)
+        overlay?.setRegion(region)
+        await applyOutputSizeIfChanged()
+        capture.update(geometry: currentGeometry())
+    }
+
     func setDimAlpha(_ alpha: CGFloat) {
         overlay?.setDimAlpha(alpha)
     }
@@ -128,10 +142,12 @@ final class SharingSession {
         }
     }
 
-    /// In free-form mode a resize changes the virtual display's resolution;
-    /// apply the new mode and follow the (possibly re-framed) virtual screen.
+    /// Applies the current output size to the virtual display when it changed,
+    /// then follows the (possibly re-framed) virtual screen. Driven by free-form
+    /// resizes and by toggling the aspect lock, which flips the output between
+    /// the region's own size and a fixed 1080p.
     private func applyOutputSizeIfChanged() async {
-        guard !aspectLocked, virtualDisplay.currentModePointSize != outputPointSize else { return }
+        guard virtualDisplay.currentModePointSize != outputPointSize else { return }
         await VirtualDisplayController.suppressingReconfigurationFade {
             _ = virtualDisplay.applyMode(pointSize: outputPointSize, hiDPI: pixelScale == 2)
         }

@@ -46,7 +46,7 @@ final class HighlightOverlayController {
 
     private(set) var region: CGRect
     private(set) var screen: NSScreen
-    private let aspectRatio: CGFloat?
+    private var aspectRatio: CGFloat?
     private let stopHint: String?
     private let dimWindow: NSWindow
     private let dimView: DimView
@@ -112,6 +112,13 @@ final class HighlightOverlayController {
     func setRegion(_ newRegion: CGRect) {
         region = newRegion
         layout()
+    }
+
+    /// Switches the snapping behavior of subsequent edge/corner drags. The
+    /// current region isn't reshaped here — the caller re-clamps it and calls
+    /// `setRegion` — so this only affects future resizes.
+    func setAspectRatio(_ ratio: CGFloat?) {
+        aspectRatio = ratio
     }
 
     func close() {
