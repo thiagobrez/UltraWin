@@ -58,6 +58,19 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(dimItem)
 
         menu.addItem(.separator())
+
+        // Escape hatch for users who never quit: once Sparkle has an update
+        // staged (or found), offer installing it right from the menu. The menu
+        // rebuilds on every open, so no observation is needed.
+        if let version = UpdaterManager.shared.pendingUpdateVersion {
+            let update = makeItem(
+                title: "Update to \(version) Available — Restart to Apply",
+                action: #selector(applyPendingUpdate)
+            )
+            menu.addItem(update)
+            menu.addItem(.separator())
+        }
+
         let preferences = makeItem(title: "Preferences…", action: #selector(showPreferences))
         preferences.keyEquivalent = ","
         preferences.keyEquivalentModifierMask = .command
@@ -93,6 +106,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func showPreferences() {
         app.showPreferences()
+    }
+
+    @objc private func applyPendingUpdate() {
+        UpdaterManager.shared.applyPendingUpdate()
     }
 
     @objc private func toggleAspectLock() {

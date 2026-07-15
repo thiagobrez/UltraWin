@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>UltraWin — Share only part of your screen</title>
+    <meta
+      name="description"
+      content="UltraWin is a macOS app for sharing only part of your ultrawide screen in video calls. Select a region, share the invisible UltraWin Display, and your apps stay exactly where they are."
+    />
+    <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png" />
+    <meta property="og:title" content="UltraWin — Share only part of your screen" />
+    <meta
+      property="og:description"
+      content="A macOS app for sharing only part of your ultrawide screen in video calls. Your apps stay exactly where they are."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://thiagobrez.github.io/UltraWin/" />
+    <meta property="og:image" content="https://thiagobrez.github.io/UltraWin/assets/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="UltraWin app icon beside the words UltraWin — Share only part of your screen"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="UltraWin — Share only part of your screen" />
+    <meta
+      name="twitter:description"
+      content="A macOS app for sharing only part of your ultrawide screen in video calls. Your apps stay exactly where they are."
+    />
+    <meta name="twitter:image" content="https://thiagobrez.github.io/UltraWin/assets/og-image.png" />
+    <style>
+      :root {
+        --accent: #007aff;
+        --bg: #fafafa;
+        --bg-hero: linear-gradient(
+          180deg,
+          #cfe0f230 0%,
+          #dbe4ee38 55%,
+          #b6cde930 100%
+        );
+        --text: #1d1d1f;
+        --text-secondary: #55555c;
+        --text-tertiary: #8b8b92;
+        --card: rgba(0, 0, 0, 0.045);
+        --card-border: rgba(0, 0, 0, 0.08);
+        --screen-bg: rgba(0, 0, 0, 0.05);
+        --screen-border: rgba(0, 0, 0, 0.12);
+        --window-bg: rgba(0, 0, 0, 0.07);
+        --keycap-bg: rgba(0, 0, 0, 0.06);
+        --keycap-border: rgba(0, 0, 0, 0.15);
+        --btn-secondary-border: rgba(0, 0, 0, 0.18);
+        --footer-border: rgba(0, 0, 0, 0.08);
+        --shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --accent: #0a84ff;
+          --bg: #131315;
+          --bg-hero: linear-gradient(
+            180deg,
+            #36465f22 0%,
+            #26324126 55%,
+            #1a243822 100%
+          );
+          --text: #f2f2f4;
+          --text-secondary: #a9a9b0;
+          --text-tertiary: #77777e;
+          --card: rgba(255, 255, 255, 0.055);
+          --card-border: rgba(255, 255, 255, 0.09);
+          --screen-bg: rgba(255, 255, 255, 0.06);
+          --screen-border: rgba(255, 255, 255, 0.14);
+          --window-bg: rgba(255, 255, 255, 0.08);
+          --keycap-bg: rgba(255, 255, 255, 0.07);
+          --keycap-border: rgba(255, 255, 255, 0.16);
+          --btn-secondary-border: rgba(255, 255, 255, 0.22);
+          --footer-border: rgba(255, 255, 255, 0.09);
+          --shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
+        }
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        font-family: ui-rounded, -apple-system, BlinkMacSystemFont,
+          "SF Pro Rounded", "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.55;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      main {
+        display: block;
+      }
+
+      /* ---------- Header ---------- */
+
+      .site-header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 50;
+        display: flex;
+        justify-content: flex-end;
+        padding: 18px 22px;
+        pointer-events: none;
+      }
+      .icon-btn {
+        pointer-events: auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        color: var(--text);
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        -webkit-backdrop-filter: saturate(180%) blur(12px);
+        backdrop-filter: saturate(180%) blur(12px);
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+      .icon-btn:hover {
+        transform: translateY(-1px);
+        background: color-mix(in srgb, var(--text) 10%, var(--card));
+      }
+      .icon-btn:active {
+        transform: translateY(0) scale(0.96);
+      }
+
+      section {
+        max-width: 680px;
+        margin: 0 auto;
+        padding: 88px 28px;
+        text-align: center;
+      }
+
+      h1 {
+        font-size: clamp(40px, 8vw, 56px);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.1;
+      }
+
+      h2 {
+        font-size: clamp(26px, 5vw, 32px);
+        font-weight: 700;
+        letter-spacing: -0.015em;
+        margin-bottom: 14px;
+      }
+
+      p.body {
+        font-size: 16px;
+        color: var(--text-secondary);
+      }
+      p.small {
+        font-size: 13.5px;
+        color: var(--text-tertiary);
+        margin-top: 12px;
+      }
+
+      /* ---------- Scroll reveal (mirrors onboarding hero entrance) ---------- */
+
+      .reveal-hero,
+      .reveal-text {
+        opacity: 0;
+        transition: opacity 0.45s cubic-bezier(0.2, 0.9, 0.3, 1),
+          transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
+      }
+      .reveal-hero {
+        transform: scale(0.85);
+      }
+      .reveal-text {
+        transform: translateY(14px);
+      }
+      .revealed .reveal-hero,
+      .revealed .reveal-text {
+        opacity: 1;
+        transform: none;
+      }
+
+      /* ---------- Hero ---------- */
+
+      .hero {
+        max-width: none;
+        padding: 96px 28px 88px;
+        background: var(--bg-hero);
+      }
+      .hero-inner {
+        max-width: 680px;
+        margin: 0 auto;
+      }
+
+      .app-icon {
+        display: block;
+        width: 148px;
+        height: 148px;
+        margin: 0 auto 22px;
+        filter: drop-shadow(0 12px 26px rgba(0, 0, 0, 0.22));
+      }
+      .app-icon img {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      @media (prefers-color-scheme: dark) {
+        .app-icon {
+          filter: drop-shadow(0 12px 30px rgba(0, 0, 0, 0.6));
+        }
+      }
+
+      .tagline {
+        font-size: 19px;
+        color: var(--text-secondary);
+        margin-top: 12px;
+      }
+
+      .cta-row {
+        display: flex;
+        gap: 14px;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        margin-top: 40px;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        height: 52px;
+        border-radius: 12px;
+        text-decoration: none;
+        font-weight: 600;
+        transition: transform 0.15s ease, opacity 0.15s ease;
+      }
+      .btn:hover {
+        transform: translateY(-1px);
+      }
+      .btn:active {
+        transform: translateY(0) scale(0.98);
+      }
+
+      .btn-primary {
+        background: var(--text);
+        color: var(--bg);
+        padding: 0 22px;
+        font-size: 15px;
+      }
+      .btn-primary svg {
+        flex-shrink: 0;
+      }
+
+      .brew-row {
+        display: flex;
+        justify-content: center;
+        margin-top: 16px;
+      }
+      .brew-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 40px;
+        padding: 0 5px 0 16px;
+        border: 1.5px solid var(--btn-secondary-border);
+        border-radius: 10px;
+      }
+      .brew-pill code {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+      .brew-pill code .prompt {
+        color: var(--text-tertiary);
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      .brew-copy {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        border: none;
+        border-radius: 7px;
+        background: transparent;
+        color: var(--text-tertiary);
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease;
+      }
+      .brew-copy:hover {
+        background: color-mix(in srgb, var(--text) 10%, transparent);
+        color: var(--text);
+      }
+      .brew-copy .check {
+        display: none;
+      }
+      .brew-copy.copied .copy {
+        display: none;
+      }
+      .brew-copy.copied .check {
+        display: block;
+        color: var(--accent);
+      }
+
+      /* ---------- Region demo (hero animation) ---------- */
+
+      .region-stage {
+        margin-bottom: 34px;
+      }
+      .region-demo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .ultrawide {
+        position: relative;
+        width: min(380px, 78vw);
+        aspect-ratio: 12 / 5;
+        border-radius: 12px;
+        background: var(--screen-bg);
+        border: 1.5px solid var(--screen-border);
+        overflow: hidden;
+      }
+      .ultrawide .window {
+        position: absolute;
+        border-radius: 6px;
+        background: var(--window-bg);
+      }
+      .ultrawide .dim {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.3);
+        opacity: 0;
+        transition: opacity 0.5s ease;
+      }
+      .ultrawide .region {
+        position: absolute;
+        left: 34%;
+        top: 20%;
+        width: 32%;
+        height: 60%;
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--accent) 85%, transparent);
+        outline: 2px dashed rgba(255, 255, 255, 0.95);
+        outline-offset: 3px;
+        opacity: 0;
+        transform: scale(0.6);
+        transition: opacity 0.45s cubic-bezier(0.2, 0.9, 0.3, 1),
+          transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1),
+          left 0.8s cubic-bezier(0.3, 0.8, 0.3, 1),
+          width 0.8s cubic-bezier(0.3, 0.8, 0.3, 1);
+      }
+      .region-demo.selected .dim {
+        opacity: 1;
+      }
+      .region-demo.selected .region {
+        opacity: 1;
+        transform: none;
+      }
+      .region-demo.moved .region {
+        left: 12%;
+        width: 40%;
+      }
+      .region-arrow {
+        color: var(--text-tertiary);
+        flex-shrink: 0;
+      }
+      .meeting {
+        width: min(160px, 34vw);
+        flex-shrink: 0;
+      }
+      .meeting .meeting-screen {
+        aspect-ratio: 16 / 9;
+        border-radius: 8px;
+        background: var(--screen-bg);
+        border: 1.5px solid var(--screen-border);
+        transition: background 0.5s ease;
+      }
+      .region-demo.selected .meeting .meeting-screen {
+        background: color-mix(in srgb, var(--accent) 85%, transparent);
+      }
+      .meeting .meeting-label {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--text-tertiary);
+      }
+
+      /* ---------- Picker demo ---------- */
+
+      .picker {
+        display: inline-block;
+        padding: 18px 20px 16px;
+        border-radius: 16px;
+        background: var(--card);
+        border: 1px solid var(--card-border);
+        margin-bottom: 34px;
+      }
+      .picker-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-align: left;
+        margin-bottom: 12px;
+      }
+      .picker-tiles {
+        display: flex;
+        gap: 14px;
+      }
+      .picker-tile {
+        padding: 7px;
+        border-radius: 12px;
+        border: 2px solid transparent;
+        transition: border-color 0.35s ease;
+      }
+      .picker-tile .tile-screen {
+        position: relative;
+        width: 120px;
+        aspect-ratio: 16 / 9;
+        border-radius: 7px;
+        background: var(--window-bg);
+        transition: background 0.35s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .picker-tile .tile-check {
+        width: 24px;
+        height: 24px;
+        color: #fff;
+        opacity: 0;
+        transform: scale(0.5);
+        transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
+      }
+      .picker-tile .tile-label {
+        margin-top: 7px;
+        font-size: 11px;
+        color: var(--text-tertiary);
+        transition: color 0.35s ease;
+      }
+      .picker.selected .picker-tile.ultrawin-tile {
+        border-color: var(--accent);
+      }
+      .picker.selected .picker-tile.ultrawin-tile .tile-screen {
+        background: color-mix(in srgb, var(--accent) 85%, transparent);
+      }
+      .picker.selected .picker-tile.ultrawin-tile .tile-check {
+        opacity: 1;
+        transform: none;
+      }
+      .picker.selected .picker-tile.ultrawin-tile .tile-label {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      /* ---------- Keycaps ---------- */
+
+      .keycaps {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin-bottom: 34px;
+      }
+      .keycap {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 58px;
+        height: 58px;
+        font-size: 24px;
+        font-weight: 600;
+        border-radius: 13px;
+        background: var(--keycap-bg);
+        border: 1.5px solid var(--keycap-border);
+        box-shadow: 0 3px 0 var(--keycap-border);
+        transition: transform 0.12s ease, box-shadow 0.12s ease;
+      }
+      .keycap.pressed {
+        transform: translateY(3px);
+        box-shadow: 0 0 0 var(--keycap-border);
+      }
+
+      /* ---------- Options (dim levels + 16:9) ---------- */
+
+      .options-row {
+        display: flex;
+        gap: 22px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 34px;
+      }
+      .dim-option .dim-screen {
+        position: relative;
+        width: 130px;
+        aspect-ratio: 12 / 5;
+        border-radius: 9px;
+        background: var(--screen-bg);
+        border: 1.5px solid var(--screen-border);
+        overflow: hidden;
+      }
+      .dim-option .dim-layer {
+        position: absolute;
+        inset: 0;
+        background: #000;
+      }
+      .dim-option .dim-region {
+        position: absolute;
+        left: 33%;
+        top: 22%;
+        width: 34%;
+        height: 56%;
+        border-radius: 4px;
+        background: color-mix(in srgb, var(--accent) 85%, transparent);
+      }
+      .dim-option .dim-label {
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--text-tertiary);
+      }
+
+      /* ---------- Glyph hero (generic section icon) ---------- */
+
+      .glyph-hero {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 12%, transparent);
+        margin-bottom: 30px;
+      }
+
+      /* ---------- Footer ---------- */
+
+      footer {
+        border-top: 1px solid var(--footer-border);
+        padding: 64px 28px 48px;
+        text-align: center;
+      }
+      .footer-inner {
+        max-width: 680px;
+        margin: 0 auto;
+      }
+      .avatar {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        border: 1px solid var(--card-border);
+      }
+      .built-by {
+        margin-top: 12px;
+        font-weight: 600;
+      }
+      .social-row {
+        display: flex;
+        gap: 22px;
+        justify-content: center;
+        margin-top: 10px;
+      }
+      .social-row a {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 14px;
+      }
+      .social-row a:hover {
+        color: var(--text);
+      }
+      .sponsor-row {
+        margin-top: 18px;
+      }
+      .footer-links {
+        display: flex;
+        gap: 26px;
+        justify-content: center;
+        margin-top: 26px;
+        font-size: 14px;
+      }
+      .footer-links a {
+        color: var(--text-secondary);
+        text-decoration: none;
+      }
+      .footer-links a:hover {
+        color: var(--text);
+        text-decoration: underline;
+      }
+      .copyright {
+        margin-top: 22px;
+        font-size: 12.5px;
+        color: var(--text-tertiary);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        .reveal-hero,
+        .reveal-text,
+        .ultrawide .region,
+        .ultrawide .dim,
+        .meeting .meeting-screen,
+        .picker-tile,
+        .picker-tile .tile-screen,
+        .picker-tile .tile-check,
+        .keycap {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <a
+        class="icon-btn"
+        href="https://github.com/thiagobrez/UltraWin"
+        target="_blank"
+        rel="noopener"
+        aria-label="View UltraWin on GitHub"
+        title="View on GitHub"
+      >
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path
+            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+          />
+        </svg>
+      </a>
+    </header>
+    <main>
+      <!-- Hero -->
+      <section class="hero reveal-section">
+        <div class="hero-inner">
+          <picture class="app-icon reveal-hero">
+            <source srcset="assets/app-icon-dark.png" media="(prefers-color-scheme: dark)" />
+            <img src="assets/app-icon-light.png" width="148" height="148" alt="UltraWin app icon" />
+          </picture>
+
+          <h1 class="reveal-text">UltraWin</h1>
+          <p class="tagline reveal-text">
+            Your whole screen is too much to share.
+          </p>
+          <p class="body reveal-text" style="margin-top: 18px; max-width: 480px; margin-left: auto; margin-right: auto">
+            Share only part of your ultrawide screen in video calls.
+            Your apps stay exactly where they are.
+          </p>
+
+          <div class="cta-row reveal-text">
+            <a
+              class="btn btn-primary"
+              href="https://github.com/thiagobrez/UltraWin/releases/latest/download/UltraWin.dmg"
+              download
+            >
+              <svg width="17" height="20" viewBox="0 0 22 26" fill="currentColor" aria-hidden="true">
+                <path
+                  d="M18.3 13.8c0-3 2.5-4.5 2.6-4.6-1.4-2.1-3.6-2.4-4.4-2.4-1.9-.2-3.6 1.1-4.6 1.1-.9 0-2.4-1.1-4-1-2 0-3.9 1.2-5 3-2.1 3.7-.5 9.2 1.5 12.2 1 1.5 2.2 3.1 3.8 3 1.5-.1 2.1-1 3.9-1s2.4 1 4 1c1.7 0 2.7-1.5 3.7-3 1.2-1.7 1.7-3.4 1.7-3.5-.1 0-3.2-1.2-3.2-4.8zM15.3 4.8c.8-1 1.4-2.4 1.2-3.8-1.2 0-2.7.8-3.5 1.8-.8.9-1.5 2.3-1.3 3.7 1.4.1 2.8-.7 3.6-1.7z"
+                />
+              </svg>
+              Download for macOS
+            </a>
+          </div>
+          <div class="brew-row reveal-text">
+            <span class="brew-pill">
+              <code
+                ><span class="prompt" aria-hidden="true">$&nbsp;</span
+                >brew install thiagobrez/tap/ultrawin</code
+              >
+              <button
+                class="brew-copy"
+                id="brew-copy"
+                type="button"
+                aria-label="Copy Homebrew install command"
+                title="Copy"
+              >
+                <svg class="copy" width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M5 2a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-1.5v-1.5H14a.5.5 0 0 0 .5-.5V2a.5.5 0 0 0-.5-.5H7a.5.5 0 0 0-.5.5v1.5H5V2z"
+                  />
+                  <path
+                    d="M0 7a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V7zm2-.5a.5.5 0 0 0-.5.5v7a.5.5 0 0 0 .5.5h7a.5.5 0 0 0 .5-.5V7a.5.5 0 0 0-.5-.5H2z"
+                  />
+                </svg>
+                <svg
+                  class="check"
+                  width="15"
+                  height="15"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M2.5 8.5l3.5 3.5 7.5-8" />
+                </svg>
+              </button>
+            </span>
+          </div>
+          <p class="small reveal-text">
+            Requires macOS 14 (Sonoma) or later. Free and open source.
+          </p>
+        </div>
+      </section>
+
+      <!-- Region demo (onboarding: how it works) -->
+      <section class="reveal-section">
+        <div class="region-stage reveal-hero">
+          <div
+            class="region-demo"
+            id="region-demo"
+            aria-label="Animation of a region being selected on an ultrawide screen and mirrored to the UltraWin Display"
+          >
+            <div class="ultrawide" aria-hidden="true">
+              <span class="window" style="left: 4%; top: 12%; width: 26%; height: 76%"></span>
+              <span class="window" style="left: 34%; top: 20%; width: 32%; height: 60%"></span>
+              <span class="window" style="left: 70%; top: 12%; width: 26%; height: 76%"></span>
+              <span class="dim"></span>
+              <span class="region" id="region-rect"></span>
+            </div>
+            <svg class="region-arrow" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="M4 12h15M13 6l6 6-6 6" />
+            </svg>
+            <div class="meeting" aria-hidden="true">
+              <div class="meeting-screen"></div>
+              <div class="meeting-label">UltraWin Display</div>
+            </div>
+          </div>
+        </div>
+        <h2 class="reveal-text">An invisible second display</h2>
+        <p class="body reveal-text">
+          Drag-select any region of your screen. UltraWin creates an invisible
+          virtual display that continuously mirrors it — no window to babysit,
+          nothing to rearrange.
+        </p>
+        <p class="small reveal-text">
+          Everything outside your region dims, so you always know what's shared.
+        </p>
+      </section>
+
+      <!-- Meeting picker -->
+      <section class="reveal-section">
+        <div class="reveal-hero">
+          <div class="picker" id="picker" aria-label="Animation of picking UltraWin Display in a meeting app's share dialog">
+            <div class="picker-title">Choose what to share</div>
+            <div class="picker-tiles" aria-hidden="true">
+              <div class="picker-tile">
+                <div class="tile-screen"></div>
+                <div class="tile-label">Built-in Display</div>
+              </div>
+              <div class="picker-tile ultrawin-tile">
+                <div class="tile-screen">
+                  <svg class="tile-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10" fill="rgba(255,255,255,0.25)" stroke="none" />
+                    <path d="M8 12.5l2.6 2.6L16 9.5" />
+                  </svg>
+                </div>
+                <div class="tile-label">UltraWin Display</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <h2 class="reveal-text">Works with every meeting app</h2>
+        <p class="body reveal-text">
+          In Zoom, Meet, or Teams, share the screen named
+          <strong>“UltraWin Display”</strong>.<br />
+          Everyone sees just your region — never the rest of your screen.
+        </p>
+      </section>
+
+      <!-- Move / resize live -->
+      <section class="reveal-section">
+        <div class="glyph-hero reveal-hero" aria-hidden="true">
+          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="7" width="14" height="10" rx="2" stroke-dasharray="4 3" />
+            <path d="M12 2v2M12 20v2M2 12h2M20 12h2" />
+          </svg>
+        </div>
+        <h2 class="reveal-text">Move and resize while live</h2>
+        <p class="body reveal-text">
+          Sharing something that moved? Drag the frame's edges to reposition it
+          and corners to resize it — the shared output follows in real time.
+        </p>
+        <p class="small reveal-text">
+          Hold ⌘ and drag to move the whole selection.
+        </p>
+      </section>
+
+      <!-- Hotkey -->
+      <section class="reveal-section">
+        <div class="keycaps reveal-hero" id="keycaps" aria-label="Keyboard shortcut: Command Shift U">
+          <span class="keycap">⌘</span>
+          <span class="keycap">⇧</span>
+          <span class="keycap">U</span>
+        </div>
+        <h2 class="reveal-text">One hotkey, start to stop</h2>
+        <p class="body reveal-text">
+          Press it from any app to select a region — press it again to stop
+          sharing.
+        </p>
+        <p class="small reveal-text">You can change it anytime in Preferences.</p>
+      </section>
+
+      <!-- Options -->
+      <section class="reveal-section">
+        <div class="options-row reveal-hero" aria-label="The three dim levels: off, light, and strong">
+          <div class="dim-option">
+            <div class="dim-screen" aria-hidden="true">
+              <span class="dim-layer" style="opacity: 0"></span>
+              <span class="dim-region"></span>
+            </div>
+            <div class="dim-label">Off</div>
+          </div>
+          <div class="dim-option">
+            <div class="dim-screen" aria-hidden="true">
+              <span class="dim-layer" style="opacity: 0.25"></span>
+              <span class="dim-region"></span>
+            </div>
+            <div class="dim-label">Light</div>
+          </div>
+          <div class="dim-option">
+            <div class="dim-screen" aria-hidden="true">
+              <span class="dim-layer" style="opacity: 0.5"></span>
+              <span class="dim-region"></span>
+            </div>
+            <div class="dim-label">Strong</div>
+          </div>
+        </div>
+        <h2 class="reveal-text">Make it yours</h2>
+        <p class="body reveal-text">
+          Pick how much the rest of your screen dims — only you see it, never
+          your call. Or snap the selection to 16:9 for a clean
+          <strong>1920×1080</strong> output that meeting apps love.
+        </p>
+      </section>
+    </main>
+
+    <footer class="reveal-section">
+      <div class="footer-inner">
+        <img
+          class="avatar reveal-hero"
+          src="https://github.com/thiagobrez.png?size=128"
+          alt="Thiago Brezinski"
+          width="64"
+          height="64"
+          loading="lazy"
+        />
+        <p class="built-by reveal-text">Built by Thiago Brezinski</p>
+        <div class="social-row reveal-text">
+          <a href="https://github.com/thiagobrez" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+              />
+            </svg>
+            @thiagobrez
+          </a>
+          <a href="https://x.com/thiagobrez" target="_blank" rel="noopener">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path
+                d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"
+              />
+            </svg>
+            @thiagobrez
+          </a>
+        </div>
+        <div class="sponsor-row reveal-text">
+          <iframe
+            src="https://github.com/sponsors/thiagobrez/button"
+            title="Sponsor thiagobrez"
+            height="32"
+            width="114"
+            style="border: 0; border-radius: 6px"
+          ></iframe>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/thiagobrez/UltraWin" target="_blank" rel="noopener">Source</a>
+          <a href="support">Support</a>
+          <a href="privacy-policy">Privacy Policy</a>
+        </div>
+        <p class="copyright">© <span id="year"></span> Thiago Brezinski</p>
+      </div>
+    </footer>
+
+    <script>
+      document.getElementById("year").textContent = new Date().getFullYear();
+
+      // Homebrew install snippet: copy to clipboard, flash a checkmark.
+      const brewCopy = document.getElementById("brew-copy");
+      brewCopy.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(
+          "brew install thiagobrez/tap/ultrawin"
+        );
+        brewCopy.classList.add("copied");
+        setTimeout(() => brewCopy.classList.remove("copied"), 1500);
+      });
+
+      const reducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+      ).matches;
+
+      // Scroll reveal: sections animate in like the onboarding pages (hero
+      // scales up from 85%, text fades in) the first time they enter the
+      // viewport.
+      const sections = document.querySelectorAll(".reveal-section");
+      if (reducedMotion) {
+        sections.forEach((s) => s.classList.add("revealed"));
+      } else {
+        const revealObserver = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("revealed");
+                revealObserver.unobserve(entry.target);
+              }
+            });
+          },
+          { threshold: 0.25 }
+        );
+        sections.forEach((s) => revealObserver.observe(s));
+      }
+
+      // Runs an async step loop for a demo element, but only while it is on
+      // screen. Each loop function receives an isCancelled() callback and must
+      // return when it reports true. At most one loop instance runs per
+      // element: a cancelled loop is still winding down while it sits in a
+      // sleep, so a fresh one only starts after the old one has fully exited —
+      // otherwise scrolling out and back in stacks concurrent loops that fight
+      // over the same element.
+      function loopWhileVisible(element, loop) {
+        if (reducedMotion) return;
+        let cancelled = true;
+        let running = false;
+        const maybeStart = () => {
+          if (cancelled || running) return;
+          running = true;
+          Promise.resolve(loop(() => cancelled)).finally(() => {
+            running = false;
+            maybeStart(); // re-entered the viewport while winding down
+          });
+        };
+        new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              cancelled = !entry.isIntersecting;
+              maybeStart();
+            });
+          },
+          { threshold: 0.4 }
+        ).observe(element);
+      }
+
+      const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
+
+      // Region demo: idle → region snaps in + outside dims + output lights up
+      // → the region slides/resizes while staying live → clears. Mirrors the
+      // onboarding "how it works" animation in the app.
+      const regionDemo = document.getElementById("region-demo");
+      if (reducedMotion) {
+        // No loop will run — show the selected state so the demo isn't blank.
+        regionDemo.classList.add("selected");
+      } else {
+        loopWhileVisible(regionDemo, async (isCancelled) => {
+          while (!isCancelled()) {
+            regionDemo.classList.remove("selected", "moved");
+            await sleep(0.9);
+            if (isCancelled()) break;
+            regionDemo.classList.add("selected");
+            await sleep(2.0);
+            if (isCancelled()) break;
+            regionDemo.classList.add("moved");
+            await sleep(2.2);
+            if (isCancelled()) break;
+            regionDemo.classList.remove("selected", "moved");
+            await sleep(0.7);
+          }
+          regionDemo.classList.remove("selected", "moved");
+        });
+      }
+
+      // Picker demo: UltraWin Display gets picked, holds, resets.
+      const picker = document.getElementById("picker");
+      if (reducedMotion) {
+        picker.classList.add("selected");
+      } else {
+        loopWhileVisible(picker, async (isCancelled) => {
+          while (!isCancelled()) {
+            picker.classList.remove("selected");
+            await sleep(1.1);
+            if (isCancelled()) break;
+            picker.classList.add("selected");
+            await sleep(2.6);
+          }
+          picker.classList.remove("selected");
+        });
+      }
+
+      // Keycaps: a gentle press ripple across ⌘ ⇧ U, then a pause.
+      const keycaps = document.querySelectorAll("#keycaps .keycap");
+      loopWhileVisible(
+        document.getElementById("keycaps"),
+        async (isCancelled) => {
+          while (!isCancelled()) {
+            await sleep(1.4);
+            for (const cap of keycaps) {
+              if (isCancelled()) break;
+              cap.classList.add("pressed");
+              await sleep(0.14);
+            }
+            await sleep(0.35);
+            keycaps.forEach((cap) => cap.classList.remove("pressed"));
+          }
+          keycaps.forEach((cap) => cap.classList.remove("pressed"));
+        }
+      );
+    </script>
+  </body>
+</html>

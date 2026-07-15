@@ -3,3 +3,5 @@ DerivedData/
 *.xcodeproj
 xcuserdata/
 .DS_Store
+Config/*.local.xcconfig
+node_modules/

@@ -75,6 +75,8 @@ final class AppController: NSObject {
         super.init()
         statusItem = StatusItemController(app: self)
         registerHotKey()
+        // Kick off Sparkle so scheduled update checks start with the app.
+        _ = UpdaterManager.shared
         Task { @MainActor [virtualDisplay] in
             await VirtualDisplayController.suppressingReconfigurationFade {
                 _ = virtualDisplay.ensureReady(
@@ -95,11 +97,11 @@ final class AppController: NSObject {
         if session != nil {
             stopSharing()
         } else {
-            selectRegion()
+            selectRegion(source: .hotkey)
         }
     }
 
-    func selectRegion() {
+    func selectRegion(source: Analytics.ShareSource = .menu) {
         guard !selection.isActive else { return }
         guard ensureScreenRecordingAccess() else { return }
         // Never offer the (invisible) virtual display as a selection target.
@@ -110,7 +112,7 @@ final class AppController: NSObject {
         selection.begin(aspectRatio: aspectLocked ? 16.0 / 9.0 : nil, excludingDisplayIDs: excluded) { [weak self] result in
             guard let self, let result else { return }
             Task { @MainActor in
-                await self.startOrUpdateSession(rect: result.rect, screen: result.screen)
+                await self.startOrUpdateSession(rect: result.rect, screen: result.screen, source: source)
             }
         }
     }
@@ -118,6 +120,7 @@ final class AppController: NSObject {
     func stopSharing() {
         guard let session else { return }
         self.session = nil
+        Analytics.sharingStopped()
         Task { @MainActor in
             await session.stop()
             await parkVirtualDisplayMirrored()
@@ -180,7 +183,11 @@ final class AppController: NSObject {
 
     // MARK: - Session lifecycle
 
-    private func startOrUpdateSession(rect: CGRect, screen: NSScreen) async {
+    private func startOrUpdateSession(
+        rect: CGRect,
+        screen: NSScreen,
+        source: Analytics.ShareSource = .menu
+    ) async {
         // The (frozen) selection overlay keeps dimming the screen through the
         // whole session startup — display mode changes, capture spin-up — and
         // only fades out once the share is live, so nothing underneath is ever
@@ -221,6 +228,7 @@ final class AppController: NSObject {
                     }
                 }
                 self.session = session
+                Analytics.sharingStarted(source: source, aspectLocked: aspectLocked)
             }
             selection.dismiss(fadeDuration: 0.25)
         } catch {

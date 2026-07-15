@@ -14,7 +14,7 @@ struct CaptureGeometry: Equatable {
 /// UltraWin's own windows (overlay, frame handles) from the content.
 final class RegionCaptureEngine: NSObject, SCStreamOutput, SCStreamDelegate {
     private var stream: SCStream?
-    private let sampleQueue = DispatchQueue(label: "com.thiagobrez.UltraWin.capture")
+    private let sampleQueue = DispatchQueue(label: "ski.brezin.ultrawin.capture")
     private(set) var geometry: CaptureGeometry?
     private var pendingGeometry: CaptureGeometry?
     private var updateInFlight = false
