@@ -7,6 +7,8 @@ import AppKit
 /// `NSWindow` by `OnboardingWindowController`; `onFinish` is called when the
 /// user reaches the end (or taps Skip).
 struct OnboardingView: View {
+    /// Drives the interactive hotkey recorder on the controls page.
+    let app: AppController
     /// Called when onboarding is completed or skipped. The window controller
     /// uses this to persist the "seen" flag and close the window.
     let onFinish: () -> Void
@@ -15,7 +17,7 @@ struct OnboardingView: View {
     /// Drives the direction of the slide transition between pages.
     @State private var forward = true
 
-    private let pageCount = 5
+    private let pageCount = 6
     private var isLastPage: Bool { page == pageCount - 1 }
 
     var body: some View {
@@ -44,9 +46,10 @@ struct OnboardingView: View {
         switch page {
         case 0: WelcomePage()
         case 1: HowItWorksPage()
-        case 2: MeetingPage()
-        case 3: ControlsPage()
-        default: GetStartedPage()
+        case 2: GetStartedPage()
+        case 3: ControlsPage(app: app)
+        case 4: MeetingPage()
+        default: PermissionPage()
         }
     }
 
@@ -171,13 +174,15 @@ private struct PageText: View {
     }
 }
 
-/// One keycap of the hotkey hint (⌘ ⇧ U).
+/// One keycap of the hotkey hint. Flexes to fit multi-character labels
+/// (e.g. "Space", "F12") rather than clipping.
 private struct Keycap: View {
     let label: String
     var body: some View {
         Text(label)
             .font(.system(size: 18, weight: .semibold, design: .rounded))
-            .frame(width: 40, height: 40)
+            .frame(minWidth: 40, minHeight: 40)
+            .padding(.horizontal, 6)
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(Color.primary.opacity(0.06))
@@ -199,13 +204,20 @@ private struct WelcomePage: View {
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 124, height: 124)
         } content: {
-            PageText("Share only part of your ultrawide screen in video calls — your apps stay exactly where they are.")
+            PageText("Sharing your screen shouldn't be this hard.")
                 .frame(maxWidth: 380)
         }
     }
 
+    /// Read straight from the bundle. `NSApp.applicationIconImage` resolves the
+    /// icon through the running app's Dock tile, which UltraWin doesn't have
+    /// while it's still an `.accessory` when this page first renders — it then
+    /// answers with a generic placeholder rather than nil, so it can't be
+    /// `??`-chained past either.
     private var appIcon: NSImage {
-        NSApp.applicationIconImage ?? NSImage(named: "AppIcon") ?? NSImage()
+        NSImage(named: "AppIcon")
+            ?? Bundle.main.url(forResource: "AppIcon", withExtension: "icns").flatMap(NSImage.init(contentsOf:))
+            ?? NSWorkspace.shared.icon(forFile: Bundle.main.bundlePath)
     }
 }
 
@@ -219,7 +231,9 @@ private struct HowItWorksPage: View {
             demo
         } content: {
             VStack(spacing: 8) {
-                PageText("Drag-select any region of your screen. UltraWin creates an invisible virtual display — “UltraWin Display” — that continuously mirrors it.")
+                PageText("Drag-select any region of your screen.")
+                    .frame(maxWidth: 400)
+                PageText("UltraWin creates an invisible virtual display that continuously mirrors it.")
                     .frame(maxWidth: 400)
             }
         }
@@ -297,7 +311,9 @@ private struct MeetingPage: View {
             picker
         } content: {
             VStack(spacing: 8) {
-                PageText("In Zoom, Meet, or Teams, share the screen named “UltraWin Display”. Everyone sees just your selected region — never the rest of your screen.")
+                PageText("In Zoom, Meet, or Teams, share the screen named “UltraWin Display”.")
+                    .frame(maxWidth: 400)
+                PageText("Everyone sees just your selected region, never the rest of your screen.")
                     .frame(maxWidth: 400)
             }
         }
@@ -361,38 +377,329 @@ private struct MeetingPage: View {
 }
 
 private struct ControlsPage: View {
+    let app: AppController
+
+    /// Shared between the live keycaps and the recorder below: the recorder
+    /// pushes the current shortcut and recording state here so the caps can
+    /// track modifiers as they're held.
+    @StateObject private var model: HotkeyModel
+
+    init(app: AppController) {
+        self.app = app
+        _model = StateObject(wrappedValue: HotkeyModel(combo: app.hotKeyCombo))
+    }
+
     var body: some View {
-        PageScaffold(title: "Select and control") {
-            HStack(spacing: 8) {
-                Keycap(label: "⌘")
-                Keycap(label: "⇧")
-                Keycap(label: "U")
-            }
+        PageScaffold(title: "Or just use the shortcut") {
+            HotkeyKeysView(model: model)
         } content: {
-            VStack(spacing: 10) {
-                PageText("Press the hotkey from any app to select a region — press it again to stop sharing. You can change it in Preferences.")
+            VStack(spacing: 16) {
+                PageText("Press your shortcut from any app to select a region — press it again to stop sharing.")
                     .frame(maxWidth: 400)
-                PageText("While sharing, drag the frame's edges to move it and corners to resize — live. The menu bar icon has dim levels and a 16:9 snap for a clean 1080p output.", secondary: true)
-                    .frame(maxWidth: 400)
+
+                HotkeyRecorder(
+                    combo: model.combo,
+                    onChange: { combo in
+                        model.combo = combo
+                        app.hotKeyCombo = combo
+                    },
+                    onRecordingChange: { recording in
+                        model.recording = recording
+                        app.setHotKeySuspended(recording)
+                    }
+                )
+                .fixedSize()
+
+                PageText("Change it anytime in Preferences.", secondary: true)
             }
         }
     }
 }
 
+/// Holds the hotkey state the controls page's keycaps and recorder share.
+@MainActor
+private final class HotkeyModel: ObservableObject {
+    @Published var combo: KeyCombo?
+    @Published var recording = false
+
+    init(combo: KeyCombo?) {
+        self.combo = combo
+    }
+}
+
+/// SwiftUI wrapper around the AppKit `ShortcutRecorderButton` used in
+/// Preferences, so onboarding records the hotkey with the exact same control.
+private struct HotkeyRecorder: NSViewRepresentable {
+    let combo: KeyCombo?
+    let onChange: (KeyCombo?) -> Void
+    let onRecordingChange: (Bool) -> Void
+
+    func makeNSView(context: Context) -> ShortcutRecorderButton {
+        let button = ShortcutRecorderButton(combo: combo)
+        button.onChange = onChange
+        button.onRecordingChange = onRecordingChange
+        return button
+    }
+
+    func updateNSView(_ nsView: ShortcutRecorderButton, context: Context) {}
+}
+
+/// The hero for the controls page: keycaps showing the current shortcut. While
+/// the recorder below is recording, the caps track the modifiers being held
+/// live; otherwise they show the saved shortcut. Mirrors Signal's onboarding.
+private struct HotkeyKeysView: View {
+    @ObservedObject var model: HotkeyModel
+
+    @State private var live: [String] = []
+
+    // Lightweight poll (reads current modifier flags), running only while this
+    // page is on screen and only used while recording.
+    private let ticker = Timer.publish(every: 0.08, on: .main, in: .common).autoconnect()
+
+    private var display: [String] {
+        model.recording ? live : Self.symbols(for: model.combo)
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if display.isEmpty {
+                Keycap(label: model.recording ? "…" : "·")
+            } else {
+                ForEach(Array(display.enumerated()), id: \.offset) { _, symbol in
+                    Keycap(label: symbol)
+                }
+            }
+        }
+        .animation(.snappy(duration: 0.15), value: display)
+        .animation(.snappy(duration: 0.15), value: model.recording)
+        .onReceive(ticker) { _ in
+            guard model.recording else { return }
+            live = Self.modifierSymbols(NSEvent.modifierFlags)
+        }
+    }
+
+    private static func symbols(for combo: KeyCombo?) -> [String] {
+        guard let combo else { return [] }
+        return modifierSymbols(combo.modifiers) + [KeyCodeMap.string(for: combo.keyCode)]
+    }
+
+    /// Modifier symbols in canonical display order (⌃⌥⇧⌘).
+    private static func modifierSymbols(_ modifiers: NSEvent.ModifierFlags) -> [String] {
+        var out: [String] = []
+        if modifiers.contains(.control) { out.append("⌃") }
+        if modifiers.contains(.option) { out.append("⌥") }
+        if modifiers.contains(.shift) { out.append("⇧") }
+        if modifiers.contains(.command) { out.append("⌘") }
+        return out
+    }
+}
+
 private struct GetStartedPage: View {
     var body: some View {
-        PageScaffold(title: "Ready when you are") {
-            Image(systemName: "rectangle.dashed.badge.record")
-                .font(.system(size: 40, weight: .medium))
-                .foregroundStyle(.blue)
-                .frame(width: 88, height: 88)
-                .background(Color.blue.opacity(0.12), in: Circle())
+        PageScaffold(title: "UltraWin lives in your menu bar") {
+            MenuBarDemo()
         } content: {
-            VStack(spacing: 10) {
-                PageText("UltraWin lives in your menu bar. Select a region to share whenever you're ready.")
-                    .frame(maxWidth: 380)
-                PageText("The first time, macOS will ask for Screen Recording permission — that's what lets UltraWin mirror your selection. Nothing ever leaves your Mac.", secondary: true)
-                    .frame(maxWidth: 380)
+            PageText("Always at hand, one click away.")
+                .frame(maxWidth: 380)
+        }
+    }
+}
+
+/// Looping demo: the top of a Mac screen, where the UltraWin status item
+/// highlights and drops its menu open. The menu mirrors the real one built by
+/// `StatusItemController`, minus the session-dependent items.
+private struct MenuBarDemo: View {
+    @State private var open = false
+
+    private let barHeight: CGFloat = 22
+    /// The status item is vertically centered in the bar, so its menu has to
+    /// drop by the remaining bar height to hang off the bottom edge.
+    private var menuDrop: CGFloat { barHeight - 3 }
+
+    private var screenShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: 12,
+            bottomLeadingRadius: 0,
+            bottomTrailingRadius: 0,
+            topTrailingRadius: 12,
+            style: .continuous
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            menuBar
+            Spacer(minLength: 0)
+        }
+        .frame(width: 300, height: 128, alignment: .top)
+        .background(
+            LinearGradient(
+                colors: [Color.blue.opacity(0.28), Color.blue.opacity(0.08)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(screenShape)
+        .overlay(screenShape.strokeBorder(.separator, lineWidth: 1))
+        .task { await runLoop() }
+    }
+
+    private var menuBar: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "apple.logo")
+            Text("Finder").font(.system(size: 9, weight: .semibold))
+            Text("File")
+            Text("Edit")
+
+            Spacer(minLength: 0)
+
+            statusItem
+            Image(systemName: "wifi")
+            Image(systemName: "battery.75")
+            Text("9:41")
+        }
+        .font(.system(size: 9))
+        .foregroundStyle(.primary.opacity(0.75))
+        .padding(.horizontal, 8)
+        .frame(height: barHeight)
+        .background(Color.primary.opacity(0.08))
+    }
+
+    private var statusItem: some View {
+        Image(systemName: "rectangle.dashed.badge.record")
+            .font(.system(size: 10))
+            .foregroundStyle(open ? AnyShapeStyle(.white) : AnyShapeStyle(.primary.opacity(0.75)))
+            .frame(width: 18, height: 16)
+            .background(
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(open ? Color.blue : Color.clear)
+            )
+            .overlay(alignment: .topTrailing) {
+                if open {
+                    menu
+                        .offset(x: 6, y: menuDrop)
+                        .transition(.scale(scale: 0.92, anchor: .topTrailing).combined(with: .opacity))
+                }
+            }
+    }
+
+    private var menu: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            menuRow("Select Region to Share…")
+            menuSeparator
+            menuRow("Snap to 16:9")
+            menuRow("Dim Outside Region")
+            menuSeparator
+            menuRow("Preferences…")
+        }
+        .padding(.vertical, 4)
+        .frame(width: 132, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor))
+                .shadow(color: .black.opacity(0.18), radius: 6, y: 3)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(.separator, lineWidth: 1)
+        )
+    }
+
+    private func menuRow(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 9))
+            .foregroundStyle(.primary.opacity(0.8))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var menuSeparator: some View {
+        Rectangle()
+            .fill(.separator)
+            .frame(height: 1)
+            .padding(.vertical, 3)
+    }
+
+    private func runLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(0.9))
+            withAnimation(.snappy(duration: 0.4)) { open = true }
+            try? await Task.sleep(for: .seconds(2.8))
+            withAnimation(.easeOut(duration: 0.3)) { open = false }
+            try? await Task.sleep(for: .seconds(0.6))
+        }
+    }
+}
+
+/// Final page: asks for Screen Recording up front, so the first share isn't
+/// interrupted by the system prompt. macOS only shows that prompt once — after
+/// that the request is a no-op, so the button falls back to System Settings.
+private struct PermissionPage: View {
+    @State private var granted = Self.hasAccess()
+    @State private var asked = false
+
+    /// Every read of the permission goes through here so the DEBUG override
+    /// below holds for the whole page, not just its initial state.
+    private static func hasAccess() -> Bool {
+        #if DEBUG
+        // Launch with `-UWFakeMissingPermission YES` to exercise this page's
+        // ungranted flow on a Mac that has already granted Screen Recording.
+        if UserDefaults.standard.bool(forKey: "UWFakeMissingPermission") { return false }
+        #endif
+        return CGPreflightScreenCaptureAccess()
+    }
+
+    var body: some View {
+        PageScaffold(title: granted ? "You're all set" : "One last thing") {
+            Image(systemName: granted ? "checkmark.shield.fill" : "lock.shield")
+                .font(.system(size: 40, weight: .medium))
+                .foregroundStyle(granted ? Color.green : Color.blue)
+                .frame(width: 88, height: 88)
+                .background((granted ? Color.green : Color.blue).opacity(0.12), in: Circle())
+                .animation(.snappy(duration: 0.35), value: granted)
+        } content: {
+            VStack(spacing: 16) {
+                PageText("UltraWin needs Screen Recording permission — that's what lets it mirror your selection. Nothing ever leaves your Mac.")
+                    .frame(maxWidth: 400)
+
+                if granted {
+                    PageText("Screen Recording is enabled.", secondary: true)
+                } else {
+                    Button(asked ? "Open System Settings" : "Grant Permission") { request() }
+                        .buttonStyle(.bordered)
+
+                    if asked {
+                        PageText("Enable UltraWin under Privacy & Security → Screen Recording, then relaunch the app.", secondary: true)
+                            .frame(maxWidth: 400)
+                    }
+                }
+            }
+        }
+        .task { await pollUntilGranted() }
+    }
+
+    private func request() {
+        if asked {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
+                NSWorkspace.shared.open(url)
+            }
+            return
+        }
+        asked = true
+        _ = CGRequestScreenCaptureAccess()
+        if Self.hasAccess() {
+            withAnimation(.snappy(duration: 0.35)) { granted = true }
+        }
+    }
+
+    /// Access is granted out-of-band in the system prompt, so watch for it
+    /// while the page is on screen rather than trusting the request's result.
+    private func pollUntilGranted() async {
+        while !granted, !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(0.5))
+            if Self.hasAccess() {
+                withAnimation(.snappy(duration: 0.35)) { granted = true }
             }
         }
     }

@@ -8,9 +8,15 @@ import SwiftUI
 final class OnboardingWindowController: NSObject, NSWindowDelegate {
     static let hasSeenOnboardingKey = "hasSeenOnboarding"
 
+    private unowned let app: AppController
     private var window: NSWindow?
     /// Run once when onboarding is finished or dismissed.
     private var onComplete: (() -> Void)?
+
+    init(app: AppController) {
+        self.app = app
+        super.init()
+    }
 
     /// Builds (if needed), centers, and brings the onboarding window to the
     /// front. Because the app is `.accessory`, we activate it explicitly so the
@@ -46,7 +52,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         // Pin the SwiftUI content to a fixed size: with an unbounded
         // (maxHeight: .infinity) root view, NSHostingView would otherwise
         // resize the window to the screen height.
-        window.contentView = NSHostingView(rootView: OnboardingView(onFinish: { [weak self] in
+        window.contentView = NSHostingView(rootView: OnboardingView(app: app, onFinish: { [weak self] in
             self?.finish()
         }).frame(width: 560, height: 520))
         return window

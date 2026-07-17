@@ -10,7 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller = AppController()
 
         if !UserDefaults.standard.bool(forKey: OnboardingWindowController.hasSeenOnboardingKey) {
-            let onboarding = OnboardingWindowController()
+            let onboarding = OnboardingWindowController(app: controller)
             self.onboarding = onboarding
             onboarding.present { [weak self] in
                 self?.onboarding = nil
