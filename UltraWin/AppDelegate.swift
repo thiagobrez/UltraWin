@@ -7,6 +7,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         Analytics.start()
+        // Read Screen Recording before anything can grant it, so onboarding
+        // can tell "this process can capture" from "the permission is on now,
+        // but only a fresh process can use it".
+        _ = ScreenRecordingAccess.atLaunch
         controller = AppController()
 
         if !UserDefaults.standard.bool(forKey: OnboardingWindowController.hasSeenOnboardingKey) {

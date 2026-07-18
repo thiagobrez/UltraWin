@@ -7,6 +7,8 @@ import SwiftUI
 @MainActor
 final class OnboardingWindowController: NSObject, NSWindowDelegate {
     static let hasSeenOnboardingKey = "hasSeenOnboarding"
+    /// Page to reopen onboarding on after the Screen Recording relaunch.
+    static let resumePageKey = "onboardingResumePage"
 
     private unowned let app: AppController
     private var window: NSWindow?
@@ -49,20 +51,79 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         window.standardWindowButton(.zoomButton)?.isHidden = true
         window.isReleasedWhenClosed = false
         window.delegate = self
+        // Onboarding is only ever over once the user says so, so an unfinished
+        // run resumes where it left off — after our own relaunch, after macOS's
+        // "Quit & Reopen", or after the user quits the app outright.
+        let startPage = UserDefaults.standard.integer(forKey: Self.resumePageKey)
+
         // Pin the SwiftUI content to a fixed size: with an unbounded
         // (maxHeight: .infinity) root view, NSHostingView would otherwise
         // resize the window to the screen height.
-        window.contentView = NSHostingView(rootView: OnboardingView(app: app, onFinish: { [weak self] in
-            self?.finish()
-        }).frame(width: 560, height: 520))
+        window.contentView = NSHostingView(rootView: OnboardingView(
+            app: app,
+            startPage: startPage,
+            onFinish: { [weak self] in
+                self?.finish()
+            },
+            onRelaunch: { [weak self] in
+                self?.relaunch()
+            },
+            onPageChange: { page in
+                UserDefaults.standard.set(page, forKey: Self.resumePageKey)
+            }
+        ).frame(width: 560, height: 520))
         return window
     }
 
-    /// Marks onboarding as seen and tears down the window. Safe to call more
-    /// than once (finishing then the resulting close both route here).
+    /// Restarts the app into a fresh process, reopening onboarding where it
+    /// stands. Screen Recording is resolved once per process, so a permission
+    /// granted during onboarding doesn't apply to the instance that asked.
+    private func relaunch() {
+        // Terminating closes the window, and the delegate would tear onboarding
+        // down as if it were over — it isn't, we're coming right back.
+        window?.delegate = nil
+
+        // Wait for this instance to exit before reopening: `open` on a bundle
+        // that's still running would just reactivate the process on its way
+        // out instead of starting the fresh one we need.
+        let relauncher = Process()
+        relauncher.executableURL = URL(fileURLWithPath: "/bin/sh")
+        relauncher.arguments = [
+            "-c",
+            "while /bin/kill -0 $1 2>/dev/null; do /bin/sleep 0.1; done; /usr/bin/open \"$2\"",
+            "sh",
+            String(ProcessInfo.processInfo.processIdentifier),
+            Bundle.main.bundlePath,
+        ]
+
+        do {
+            try relauncher.run()
+        } catch {
+            // Couldn't spawn the relauncher, so stay running rather than
+            // quitting into nothing — the page keeps offering the restart.
+            window?.delegate = self
+            return
+        }
+
+        NSApp.terminate(nil)
+    }
+
+    /// The user is done with onboarding: don't show it again.
     private func finish() {
+        markSeen()
+        dismiss()
+    }
+
+    private func markSeen() {
         UserDefaults.standard.set(true, forKey: Self.hasSeenOnboardingKey)
+        UserDefaults.standard.removeObject(forKey: Self.resumePageKey)
         Analytics.onboardingCompleted()
+    }
+
+    /// Tears the window down *without* recording onboarding as seen — the
+    /// window also goes away when the app restarts mid-onboarding, and that
+    /// has to bring it back.
+    private func dismiss() {
         // Back to a menu-bar-only agent: drop the Dock icon.
         NSApp.setActivationPolicy(.accessory)
 
@@ -81,8 +142,15 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 
     // MARK: - NSWindowDelegate
 
-    /// Closing the window early (red button) also counts as having seen it.
+    /// Only reached when the user closes the window themselves (the red X):
+    /// windows closed programmatically or by the app terminating never ask.
+    /// That's the distinction onboarding needs — a restart isn't a dismissal.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        markSeen()
+        return true
+    }
+
     func windowWillClose(_ notification: Notification) {
-        finish()
+        dismiss()
     }
 }

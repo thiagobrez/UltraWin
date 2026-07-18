@@ -12,13 +12,33 @@ struct OnboardingView: View {
     /// Called when onboarding is completed or skipped. The window controller
     /// uses this to persist the "seen" flag and close the window.
     let onFinish: () -> Void
+    /// Restarts the app. Screen Recording only applies to a process that
+    /// started with it, so granting it during onboarding needs a fresh one.
+    let onRelaunch: () -> Void
+    /// Reports the page on screen, so onboarding can resume here if the app
+    /// restarts — whether that's us or macOS's own "Quit & Reopen".
+    let onPageChange: (Int) -> Void
 
-    @State private var page = 0
+    @State private var page: Int
     /// Drives the direction of the slide transition between pages.
     @State private var forward = true
 
-    private let pageCount = 6
-    private var isLastPage: Bool { page == pageCount - 1 }
+    private static let pageCount = 6
+    private var isLastPage: Bool { page == Self.pageCount - 1 }
+
+    init(
+        app: AppController,
+        startPage: Int = 0,
+        onFinish: @escaping () -> Void,
+        onRelaunch: @escaping () -> Void,
+        onPageChange: @escaping (Int) -> Void
+    ) {
+        self.app = app
+        self.onFinish = onFinish
+        self.onRelaunch = onRelaunch
+        self.onPageChange = onPageChange
+        _page = State(initialValue: min(max(startPage, 0), Self.pageCount - 1))
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -37,6 +57,8 @@ struct OnboardingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
         .tint(.blue)
+        .onAppear { onPageChange(page) }
+        .onChange(of: page) { _, newValue in onPageChange(newValue) }
     }
 
     // MARK: - Pages
@@ -49,7 +71,7 @@ struct OnboardingView: View {
         case 2: GetStartedPage()
         case 3: ControlsPage(app: app)
         case 4: MeetingPage()
-        default: PermissionPage()
+        default: PermissionPage(onRelaunch: onRelaunch)
         }
     }
 
@@ -74,7 +96,7 @@ struct OnboardingView: View {
             // Page dots: centered in the window, independent of the button
             // widths — so "Next" growing to "Get Started" doesn't shift them.
             HStack(spacing: 7) {
-                ForEach(0..<pageCount, id: \.self) { index in
+                ForEach(0..<Self.pageCount, id: \.self) { index in
                     Circle()
                         .fill(index == page ? Color.blue : Color.secondary.opacity(0.3))
                         .frame(width: 7, height: 7)
@@ -105,7 +127,7 @@ struct OnboardingView: View {
     // MARK: - Navigation
 
     private func go(to target: Int) {
-        guard target >= 0, target < pageCount else { return }
+        guard target >= 0, target < Self.pageCount else { return }
         forward = target > page
         withAnimation(.snappy(duration: 0.3)) {
             page = target
@@ -394,7 +416,7 @@ private struct ControlsPage: View {
             HotkeyKeysView(model: model)
         } content: {
             VStack(spacing: 16) {
-                PageText("Press your shortcut from any app to select a region — press it again to stop sharing.")
+                PageText("Press your shortcut from any app to select a region.\n Press it again to stop sharing.")
                     .frame(maxWidth: 400)
 
                 HotkeyRecorder(
@@ -632,23 +654,32 @@ private struct MenuBarDemo: View {
     }
 }
 
-/// Final page: asks for Screen Recording up front, so the first share isn't
-/// interrupted by the system prompt. macOS only shows that prompt once — after
-/// that the request is a no-op, so the button falls back to System Settings.
-private struct PermissionPage: View {
-    @State private var granted = Self.hasAccess()
-    @State private var asked = false
+/// Screen Recording, as this process sees it. macOS resolves TCC per process,
+/// so a grant made while the app is running doesn't apply until it restarts —
+/// which is why `atLaunch` is worth keeping around separately from `current()`.
+enum ScreenRecordingAccess {
+    /// Whether this process started with the permission. Pinned at launch by
+    /// `AppDelegate`, so navigating onto the permission page (or granting
+    /// mid-session) can't change what it reports.
+    static let atLaunch = current()
 
-    /// Every read of the permission goes through here so the DEBUG override
-    /// below holds for the whole page, not just its initial state.
-    private static func hasAccess() -> Bool {
+    static func current() -> Bool {
         #if DEBUG
-        // Launch with `-UWFakeMissingPermission YES` to exercise this page's
-        // ungranted flow on a Mac that has already granted Screen Recording.
+        // Launch with `-UWFakeMissingPermission YES` to exercise the ungranted
+        // flow on a Mac that has already granted Screen Recording.
         if UserDefaults.standard.bool(forKey: "UWFakeMissingPermission") { return false }
         #endif
         return CGPreflightScreenCaptureAccess()
     }
+}
+
+/// Final page: asks for Screen Recording up front, so the first share isn't
+/// interrupted by the system prompt.
+private struct PermissionPage: View {
+    /// Restarts the app, for when the user declined macOS's own offer to.
+    let onRelaunch: () -> Void
+
+    @State private var granted = ScreenRecordingAccess.current()
 
     var body: some View {
         PageScaffold(title: granted ? "You're all set" : "One last thing") {
@@ -660,47 +691,85 @@ private struct PermissionPage: View {
                 .animation(.snappy(duration: 0.35), value: granted)
         } content: {
             VStack(spacing: 16) {
-                PageText("UltraWin needs Screen Recording permission — that's what lets it mirror your selection. Nothing ever leaves your Mac.")
+                PageText("UltraWin needs Screen Recording permission to mirror your selection.")
                     .frame(maxWidth: 400)
 
-                if granted {
-                    PageText("Screen Recording is enabled.", secondary: true)
-                } else {
-                    Button(asked ? "Open System Settings" : "Grant Permission") { request() }
-                        .buttonStyle(.bordered)
+                statusRow
 
-                    if asked {
-                        PageText("Enable UltraWin under Privacy & Security → Screen Recording, then relaunch the app.", secondary: true)
-                            .frame(maxWidth: 400)
-                    }
+                // Nothing to restart for if the permission was already in place
+                // when this process started.
+                if !ScreenRecordingAccess.atLaunch {
+                    PageText("Once you enable it, choose “Quit & Reopen” in the macOS prompt. UltraWin restarts and comes back to this page.\n Or restart manually with the button below.", secondary: true)
+                        .frame(maxWidth: 400)
+
+                    Button("Relaunch UltraWin") { onRelaunch() }
+                        .buttonStyle(.bordered)
                 }
             }
         }
-        .task { await pollUntilGranted() }
+        .task { await requestThenWatch() }
     }
 
-    private func request() {
-        if asked {
-            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") {
-                NSWorkspace.shared.open(url)
+    private var statusRow: some View {
+        HStack(spacing: 10) {
+            Text("Screen recording permission")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .fixedSize()
+
+            Spacer(minLength: 12)
+
+            Circle()
+                .fill(granted ? Color.green : Color.red)
+                .frame(width: 8, height: 8)
+            Text(granted ? "Granted" : "Not granted")
+                .font(.system(size: 13, weight: .medium))
+                .fixedSize()
+
+            // The way out for anyone who already answered the system prompt:
+            // macOS asks once, so a "Deny" back then can only be undone here.
+            if !granted {
+                Button("Open Settings") { openSettings() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .fixedSize()
             }
-            return
         }
-        asked = true
-        _ = CGRequestScreenCaptureAccess()
-        if Self.hasAccess() {
-            withAnimation(.snappy(duration: 0.35)) { granted = true }
-        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 440)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.04))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(.separator, lineWidth: 1)
+                )
+        )
+        .animation(.snappy(duration: 0.3), value: granted)
     }
 
-    /// Access is granted out-of-band in the system prompt, so watch for it
-    /// while the page is on screen rather than trusting the request's result.
-    private func pollUntilGranted() async {
-        while !granted, !Task.isCancelled {
+    private func openSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    /// Landing here is what asks macOS for the permission — there's no button
+    /// to press, and nothing else in the app requests it until the first share.
+    /// Then keep watching: the answer arrives out-of-band, in the system prompt
+    /// or in System Settings, and it can be revoked there just as easily.
+    private func requestThenWatch() async {
+        if !granted {
+            // Shows the system prompt only if the user hasn't answered before;
+            // once they have, macOS never asks again and this does nothing.
+            _ = CGRequestScreenCaptureAccess()
+        }
+
+        while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(0.5))
-            if Self.hasAccess() {
-                withAnimation(.snappy(duration: 0.35)) { granted = true }
-            }
+            let current = ScreenRecordingAccess.current()
+            guard current != granted else { continue }
+            withAnimation(.snappy(duration: 0.35)) { granted = current }
         }
     }
 }
