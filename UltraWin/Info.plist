@@ -27,7 +27,7 @@
 	<key>SUFeedURL</key>
 	<string>https://thiagobrez.github.io/UltraWin/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>SPARKLE_PUBLIC_ED_KEY_PLACEHOLDER</string>
+	<string>AMLqGuhcxkIVr/XQHui1wWx7bd+jiEXO6dkAlXJrMI8=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUAutomaticallyUpdate</key>
