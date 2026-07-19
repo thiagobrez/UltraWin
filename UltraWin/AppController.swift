@@ -91,6 +91,11 @@ final class AppController: NSObject {
 
     // MARK: - Actions
 
+    /// Forwarded from onboarding completion — the status item is private here.
+    func showMenuBarTip() {
+        statusItem.showOnboardingTip()
+    }
+
     /// Hotkey behavior: when a region is being shared, pressing the hotkey stops
     /// it; otherwise it starts region selection. Effectively a toggle.
     func toggleRegion() {

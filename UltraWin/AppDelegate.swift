@@ -18,6 +18,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.onboarding = onboarding
             onboarding.present { [weak self] in
                 self?.onboarding = nil
+                // Point at the real status item once the window close and the
+                // flip back to `.accessory` have settled.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self?.controller.showMenuBarTip()
+                }
             }
         }
 
@@ -26,6 +31,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if CommandLine.arguments.contains("--open-preferences") {
             controller.showPreferences()
+        }
+        if CommandLine.arguments.contains("--menu-bar-tip") {
+            controller.showMenuBarTip()
         }
     }
 }

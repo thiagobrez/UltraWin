@@ -4,6 +4,7 @@ import AppKit
 final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem: NSStatusItem
     private unowned let app: AppController
+    private var tip: MenuBarTipController?
 
     init(app: AppController) {
         self.app = app
@@ -18,7 +19,26 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         statusItem.menu = menu
     }
 
+    /// Points a one-shot tooltip at the real status item after onboarding —
+    /// the app has no windows, so this is the only trace it leaves. Silently
+    /// skips when the item isn't actually visible (menu bar overflow).
+    func showOnboardingTip() {
+        guard tip == nil,
+              let button = statusItem.button,
+              let buttonWindow = button.window,
+              buttonWindow.occlusionState.contains(.visible) else { return }
+        let anchor = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        guard NSScreen.screens.contains(where: { $0.frame.intersects(anchor) }) else { return }
+
+        let tip = MenuBarTipController()
+        self.tip = tip
+        tip.show(anchoredTo: anchor) { [weak self] in
+            self?.tip = nil
+        }
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
+        tip?.dismiss()
         menu.removeAllItems()
 
         if let session = app.session {
