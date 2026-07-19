@@ -54,6 +54,7 @@
         --keycap-border: rgba(0, 0, 0, 0.15);
         --btn-secondary-border: rgba(0, 0, 0, 0.18);
         --footer-border: rgba(0, 0, 0, 0.08);
+        --menu-bg: #ffffff;
         --shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
       }
       @media (prefers-color-scheme: dark) {
@@ -78,6 +79,7 @@
           --keycap-border: rgba(255, 255, 255, 0.16);
           --btn-secondary-border: rgba(255, 255, 255, 0.22);
           --footer-border: rgba(255, 255, 255, 0.09);
+          --menu-bg: #2b2b2e;
           --shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
         }
       }
@@ -363,9 +365,7 @@
         opacity: 0;
         transform: scale(0.6);
         transition: opacity 0.45s cubic-bezier(0.2, 0.9, 0.3, 1),
-          transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1),
-          left 0.8s cubic-bezier(0.3, 0.8, 0.3, 1),
-          width 0.8s cubic-bezier(0.3, 0.8, 0.3, 1);
+          transform 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
       }
       .region-demo.selected .dim {
         opacity: 1;
@@ -373,10 +373,6 @@
       .region-demo.selected .region {
         opacity: 1;
         transform: none;
-      }
-      .region-demo.moved .region {
-        left: 12%;
-        width: 40%;
       }
       .region-arrow {
         color: var(--text-tertiary);
@@ -400,6 +396,92 @@
         margin-top: 8px;
         font-size: 12px;
         color: var(--text-tertiary);
+      }
+
+      /* ---------- Menu bar demo ---------- */
+
+      .menubar-demo {
+        position: relative;
+        width: min(300px, 80vw);
+        height: 128px;
+        margin: 0 auto 34px;
+        border-radius: 12px 12px 0 0;
+        background: linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--accent) 28%, transparent),
+          color-mix(in srgb, var(--accent) 8%, transparent)
+        );
+        border: 1.5px solid var(--screen-border);
+        border-bottom: none;
+        overflow: hidden;
+      }
+      .mb-bar {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        height: 22px;
+        padding: 0 8px;
+        font-size: 9px;
+        color: color-mix(in srgb, var(--text) 75%, transparent);
+        background: color-mix(in srgb, var(--text) 8%, transparent);
+      }
+      .mb-app {
+        font-weight: 600;
+      }
+      .mb-icon {
+        flex-shrink: 0;
+      }
+      .mb-spacer {
+        flex: 1;
+      }
+      .mb-status {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 18px;
+        height: 16px;
+        border-radius: 3px;
+        transition: background 0.2s ease, color 0.2s ease;
+      }
+      .menubar-demo.open .mb-status {
+        background: var(--accent);
+        color: #fff;
+      }
+      .mb-menu {
+        position: absolute;
+        top: 19px;
+        right: -6px;
+        display: block;
+        width: 132px;
+        padding: 4px 0;
+        text-align: left;
+        border-radius: 6px;
+        background: var(--menu-bg);
+        border: 1px solid var(--card-border);
+        box-shadow: 0 3px 6px rgba(0, 0, 0, 0.18);
+        opacity: 0;
+        transform: scale(0.92);
+        transform-origin: top right;
+        transition: opacity 0.3s ease,
+          transform 0.4s cubic-bezier(0.2, 0.9, 0.3, 1);
+      }
+      .menubar-demo.open .mb-menu {
+        opacity: 1;
+        transform: none;
+      }
+      .mb-menu-row {
+        display: block;
+        padding: 3px 8px;
+        font-size: 9px;
+        color: color-mix(in srgb, var(--text) 80%, transparent);
+        white-space: nowrap;
+      }
+      .mb-menu-sep {
+        display: block;
+        height: 1px;
+        margin: 3px 0;
+        background: var(--card-border);
       }
 
       /* ---------- Picker demo ---------- */
@@ -496,58 +578,6 @@
         box-shadow: 0 0 0 var(--keycap-border);
       }
 
-      /* ---------- Options (dim levels + 16:9) ---------- */
-
-      .options-row {
-        display: flex;
-        gap: 22px;
-        justify-content: center;
-        flex-wrap: wrap;
-        margin-bottom: 34px;
-      }
-      .dim-option .dim-screen {
-        position: relative;
-        width: 130px;
-        aspect-ratio: 12 / 5;
-        border-radius: 9px;
-        background: var(--screen-bg);
-        border: 1.5px solid var(--screen-border);
-        overflow: hidden;
-      }
-      .dim-option .dim-layer {
-        position: absolute;
-        inset: 0;
-        background: #000;
-      }
-      .dim-option .dim-region {
-        position: absolute;
-        left: 33%;
-        top: 22%;
-        width: 34%;
-        height: 56%;
-        border-radius: 4px;
-        background: color-mix(in srgb, var(--accent) 85%, transparent);
-      }
-      .dim-option .dim-label {
-        margin-top: 8px;
-        font-size: 12px;
-        color: var(--text-tertiary);
-      }
-
-      /* ---------- Glyph hero (generic section icon) ---------- */
-
-      .glyph-hero {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 96px;
-        height: 96px;
-        border-radius: 50%;
-        color: var(--accent);
-        background: color-mix(in srgb, var(--accent) 12%, transparent);
-        margin-bottom: 30px;
-      }
-
       /* ---------- Footer ---------- */
 
       footer {
@@ -619,6 +649,8 @@
         .ultrawide .region,
         .ultrawide .dim,
         .meeting .meeting-screen,
+        .mb-status,
+        .mb-menu,
         .picker-tile,
         .picker-tile .tile-screen,
         .picker-tile .tile-check,
@@ -656,7 +688,7 @@
 
           <h1 class="reveal-text">UltraWin</h1>
           <p class="tagline reveal-text">
-            Your whole screen is too much to share.
+            Sharing your screen shouldn't be this hard.
           </p>
           <p class="body reveal-text" style="margin-top: 18px; max-width: 480px; margin-left: auto; margin-right: auto">
             Share only part of your ultrawide screen in video calls.
@@ -747,16 +779,78 @@
         </div>
         <h2 class="reveal-text">An invisible second display</h2>
         <p class="body reveal-text">
-          Drag-select any region of your screen. UltraWin creates an invisible
-          virtual display that continuously mirrors it — no window to babysit,
-          nothing to rearrange.
-        </p>
-        <p class="small reveal-text">
-          Everything outside your region dims, so you always know what's shared.
+          Drag-select any region of your screen.<br />
+          UltraWin creates an invisible virtual display that continuously
+          mirrors it.
         </p>
       </section>
 
-      <!-- Meeting picker -->
+      <!-- Menu bar (onboarding: lives in your menu bar) -->
+      <section class="reveal-section">
+        <div class="reveal-hero">
+          <div
+            class="menubar-demo"
+            id="menubar-demo"
+            aria-label="Animation of the UltraWin menu bar icon opening its menu"
+          >
+            <div class="mb-bar" aria-hidden="true">
+              <svg class="mb-icon" width="9" height="11" viewBox="0 0 16 16" fill="currentColor">
+                <path
+                  d="M11.182.008C11.148-.03 9.923.023 8.857 1.18c-1.066 1.156-.902 2.482-.878 2.516.024.034 1.52.087 2.475-1.258.955-1.345.762-2.391.728-2.43Zm3.314 11.733c-.048-.096-2.325-1.234-2.113-3.422.212-2.189 1.675-2.789 1.698-2.854.023-.065-.597-.79-1.254-1.157a3.692 3.692 0 0 0-1.563-.434c-.108-.003-.483-.095-1.254.116-.508.139-1.653.589-1.968.607-.316.018-1.256-.522-2.267-.665-.647-.125-1.333.131-1.824.328-.49.196-1.422.754-2.074 2.237-.652 1.482-.311 3.83-.067 4.56.244.729.625 1.924 1.273 2.796.576.984 1.34 1.667 1.659 1.899.319.232 1.219.386 1.843.067.502-.308 1.408-.485 1.766-.472.357.013 1.061.154 1.782.539.571.197 1.111.115 1.652-.105.541-.221 1.324-1.059 2.238-2.758.347-.79.505-1.217.473-1.282Z"
+                />
+              </svg>
+              <span class="mb-app">Finder</span>
+              <span>File</span>
+              <span>Edit</span>
+              <span class="mb-spacer"></span>
+              <span class="mb-status">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+                  <rect x="2.5" y="7" width="14" height="11" rx="2.5" stroke-dasharray="3.2 2.4" />
+                  <circle cx="19.5" cy="7" r="3.4" fill="currentColor" stroke="none" />
+                </svg>
+                <span class="mb-menu">
+                  <span class="mb-menu-row">Select Region to Share…</span>
+                  <span class="mb-menu-sep"></span>
+                  <span class="mb-menu-row">Snap to 16:9</span>
+                  <span class="mb-menu-row">Dim Outside Region</span>
+                  <span class="mb-menu-sep"></span>
+                  <span class="mb-menu-row">Preferences…</span>
+                </span>
+              </span>
+              <svg class="mb-icon" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                <path d="M12 19.5h.01" stroke-width="2.6" />
+              </svg>
+              <svg class="mb-icon" width="14" height="11" viewBox="0 0 28 16" fill="none" stroke="currentColor" stroke-width="1.4">
+                <rect x="1" y="2.5" width="22" height="11" rx="3" />
+                <rect x="3" y="4.5" width="14" height="7" rx="1.5" fill="currentColor" stroke="none" />
+                <path d="M25 6v4a2.2 2.2 0 0 0 0-4z" fill="currentColor" stroke="none" />
+              </svg>
+              <span>9:41</span>
+            </div>
+          </div>
+        </div>
+        <h2 class="reveal-text">UltraWin lives in your menu bar</h2>
+        <p class="body reveal-text">Always at hand, one click away.</p>
+      </section>
+
+      <!-- Hotkey (onboarding: or just use the shortcut) -->
+      <section class="reveal-section">
+        <div class="keycaps reveal-hero" id="keycaps" aria-label="Keyboard shortcut: Command Shift U">
+          <span class="keycap">⌘</span>
+          <span class="keycap">⇧</span>
+          <span class="keycap">U</span>
+        </div>
+        <h2 class="reveal-text">Or just use the shortcut</h2>
+        <p class="body reveal-text">
+          Press your shortcut from any app to select a region.<br />
+          Press it again to stop sharing.
+        </p>
+        <p class="small reveal-text">Change it anytime in Preferences.</p>
+      </section>
+
+      <!-- Meeting picker (onboarding: share it in your meeting) -->
       <section class="reveal-section">
         <div class="reveal-hero">
           <div class="picker" id="picker" aria-label="Animation of picking UltraWin Display in a meeting app's share dialog">
@@ -778,79 +872,15 @@
             </div>
           </div>
         </div>
-        <h2 class="reveal-text">Works with every meeting app</h2>
+        <h2 class="reveal-text">Share it in your meeting</h2>
         <p class="body reveal-text">
           In Zoom, Meet, or Teams, share the screen named
           <strong>“UltraWin Display”</strong>.<br />
-          Everyone sees just your region — never the rest of your screen.
+          Everyone sees just your selected region, never the rest of your
+          screen.
         </p>
       </section>
 
-      <!-- Move / resize live -->
-      <section class="reveal-section">
-        <div class="glyph-hero reveal-hero" aria-hidden="true">
-          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="5" y="7" width="14" height="10" rx="2" stroke-dasharray="4 3" />
-            <path d="M12 2v2M12 20v2M2 12h2M20 12h2" />
-          </svg>
-        </div>
-        <h2 class="reveal-text">Move and resize while live</h2>
-        <p class="body reveal-text">
-          Sharing something that moved? Drag the frame's edges to reposition it
-          and corners to resize it — the shared output follows in real time.
-        </p>
-        <p class="small reveal-text">
-          Hold ⌘ and drag to move the whole selection.
-        </p>
-      </section>
-
-      <!-- Hotkey -->
-      <section class="reveal-section">
-        <div class="keycaps reveal-hero" id="keycaps" aria-label="Keyboard shortcut: Command Shift U">
-          <span class="keycap">⌘</span>
-          <span class="keycap">⇧</span>
-          <span class="keycap">U</span>
-        </div>
-        <h2 class="reveal-text">One hotkey, start to stop</h2>
-        <p class="body reveal-text">
-          Press it from any app to select a region — press it again to stop
-          sharing.
-        </p>
-        <p class="small reveal-text">You can change it anytime in Preferences.</p>
-      </section>
-
-      <!-- Options -->
-      <section class="reveal-section">
-        <div class="options-row reveal-hero" aria-label="The three dim levels: off, light, and strong">
-          <div class="dim-option">
-            <div class="dim-screen" aria-hidden="true">
-              <span class="dim-layer" style="opacity: 0"></span>
-              <span class="dim-region"></span>
-            </div>
-            <div class="dim-label">Off</div>
-          </div>
-          <div class="dim-option">
-            <div class="dim-screen" aria-hidden="true">
-              <span class="dim-layer" style="opacity: 0.25"></span>
-              <span class="dim-region"></span>
-            </div>
-            <div class="dim-label">Light</div>
-          </div>
-          <div class="dim-option">
-            <div class="dim-screen" aria-hidden="true">
-              <span class="dim-layer" style="opacity: 0.5"></span>
-              <span class="dim-region"></span>
-            </div>
-            <div class="dim-label">Strong</div>
-          </div>
-        </div>
-        <h2 class="reveal-text">Make it yours</h2>
-        <p class="body reveal-text">
-          Pick how much the rest of your screen dims — only you see it, never
-          your call. Or snap the selection to 16:9 for a clean
-          <strong>1920×1080</strong> output that meeting apps love.
-        </p>
-      </section>
     </main>
 
     <footer class="reveal-section">
@@ -971,8 +1001,8 @@
       const sleep = (s) => new Promise((r) => setTimeout(r, s * 1000));
 
       // Region demo: idle → region snaps in + outside dims + output lights up
-      // → the region slides/resizes while staying live → clears. Mirrors the
-      // onboarding "how it works" animation in the app.
+      // → holds → clears. Mirrors the onboarding "how it works" animation in
+      // the app, timings included.
       const regionDemo = document.getElementById("region-demo");
       if (reducedMotion) {
         // No loop will run — show the selected state so the demo isn't blank.
@@ -980,19 +1010,37 @@
       } else {
         loopWhileVisible(regionDemo, async (isCancelled) => {
           while (!isCancelled()) {
-            regionDemo.classList.remove("selected", "moved");
-            await sleep(0.9);
+            regionDemo.classList.remove("selected");
+            await sleep(0.8);
             if (isCancelled()) break;
             regionDemo.classList.add("selected");
-            await sleep(2.0);
+            await sleep(2.6);
             if (isCancelled()) break;
-            regionDemo.classList.add("moved");
-            await sleep(2.2);
-            if (isCancelled()) break;
-            regionDemo.classList.remove("selected", "moved");
-            await sleep(0.7);
+            regionDemo.classList.remove("selected");
+            await sleep(0.6);
           }
-          regionDemo.classList.remove("selected", "moved");
+          regionDemo.classList.remove("selected");
+        });
+      }
+
+      // Menu bar demo: the status item highlights and drops its menu open,
+      // holds, closes. Mirrors the onboarding "menu bar" animation in the app.
+      const menubarDemo = document.getElementById("menubar-demo");
+      if (reducedMotion) {
+        menubarDemo.classList.add("open");
+      } else {
+        loopWhileVisible(menubarDemo, async (isCancelled) => {
+          while (!isCancelled()) {
+            menubarDemo.classList.remove("open");
+            await sleep(0.9);
+            if (isCancelled()) break;
+            menubarDemo.classList.add("open");
+            await sleep(2.8);
+            if (isCancelled()) break;
+            menubarDemo.classList.remove("open");
+            await sleep(0.6);
+          }
+          menubarDemo.classList.remove("open");
         });
       }
 
@@ -1004,10 +1052,10 @@
         loopWhileVisible(picker, async (isCancelled) => {
           while (!isCancelled()) {
             picker.classList.remove("selected");
-            await sleep(1.1);
+            await sleep(1.2);
             if (isCancelled()) break;
             picker.classList.add("selected");
-            await sleep(2.6);
+            await sleep(2.4);
           }
           picker.classList.remove("selected");
         });
