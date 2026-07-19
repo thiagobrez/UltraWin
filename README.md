@@ -1,41 +1,42 @@
+<div align="center">
+
+<img src="docs/assets/app-icon-light.png#gh-light-mode-only" alt="UltraWin app icon" width="128" height="128" />
+<img src="docs/assets/app-icon-dark.png#gh-dark-mode-only" alt="UltraWin app icon" width="128" height="128" />
+
 # UltraWin
 
-Share part of your ultrawide screen in meetings — through an **invisible virtual monitor**.
+**Sharing your screen shouldn't be this hard.**
 
-Drag-select a region of your screen and UltraWin creates a virtual display
-("UltraWin Display") that continuously mirrors whatever is inside that region.
-In Zoom/Meet/Teams, share that display. Unlike DeskPad-style tools there is no
-window to interact with: your apps stay where they are, the shared region is
-highlighted on your real screen (everything outside it is dimmed), and the
-frame can be moved and resized live while sharing.
+[![Version](https://img.shields.io/github/v/release/thiagobrez/UltraWin?label=version&color=34c759)](https://github.com/thiagobrez/UltraWin/releases/latest)
+[![macOS](https://img.shields.io/badge/macOS-14%2B-black?logo=apple)](https://github.com/thiagobrez/UltraWin/releases/latest)
 
-## Usage
+</div>
 
-1. Click the UltraWin menu bar icon → **Select Region to Share…**
-2. Drag over the part of the screen you want to share (Esc cancels).
-3. In your meeting app, share the display called **UltraWin Display**.
-4. Drag the frame's edges to move it, corners to resize. **Stop Sharing** removes the virtual display.
+## Download
 
-Options: **Snap to 16:9** locks the selection to 16:9 and outputs a fixed
-1920×1080 display; **Dim Outside Region** controls how strongly the
-non-shared area is dimmed on your screen.
+<div align="center">
 
-## Build
+[**Download for macOS**](https://github.com/thiagobrez/UltraWin/releases/latest/download/UltraWin.dmg)
+
+</div>
+
+Or with [Homebrew](https://brew.sh) — installs the same signed, notarized
+build as the direct download:
 
 ```sh
-brew install xcodegen
-xcodegen generate
-xcodebuild -project UltraWin.xcodeproj -scheme UltraWin -configuration Release -derivedDataPath build build
-open build/Build/Products/Release/UltraWin.app
+brew install thiagobrez/tap/ultrawin
 ```
 
-Grant Screen Recording permission on first use (System Settings → Privacy &
-Security → Screen Recording), then relaunch the app.
+Requires macOS 14 (Sonoma) or later. Free and open source.
 
-## Notes
+## What is UltraWin?
 
-- Uses the private `CGVirtualDisplay` CoreGraphics API (same as DeskPad,
-  BetterDisplay, …). Works on current macOS but is not App Store material.
-- The virtual display participates in your display arrangement, so the mouse
-  can wander onto it along one edge. It shows nothing on your physical
-  screens, so if the cursor "disappears", drag it back.
+Sharing your screen shouldn't be this hard. On an ultrawide, sharing the whole
+display makes everything tiny; sharing a window means rearranging your work.
+UltraWin lets you drag-select a region and share just that.
+
+- **An invisible second display** — the selected region is mirrored to a virtual monitor your meeting app can share. Nothing new appears on your screen.
+- **Lives in your menu bar** — always at hand, one click away. Or press `⇧⌘U` from any app.
+- **Move and resize while sharing** — drag the frame's edges and corners live; everything outside it is dimmed on your own screen.
+
+Visit **[ultrawin.brezin.ski](https://ultrawin.brezin.ski/)** to learn more.
