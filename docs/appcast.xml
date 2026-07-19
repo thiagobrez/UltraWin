@@ -1,0 +1,25 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>UltraWin</title>
+        <item>
+            <title>1.1.0</title>
+            <pubDate>Sun, 19 Jul 2026 21:22:23 +0000</pubDate>
+            <link>https://thiagobrez.github.io/UltraWin/</link>
+            <sparkle:version>18</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h3>Minor Changes</h3>
+<ul>
+<li>df70cb1: Show menubar tooltip after finishing onboarding</li>
+</ul>
+<h3>Patch Changes</h3>
+<ul>
+<li>7fba629: Fix automatic updates public key</li>
+</ul>
+
+]]></description>
+            <enclosure url="https://github.com/thiagobrez/UltraWin/releases/download/v1.1.0/UltraWin-1.1.0.dmg" length="1675935" type="application/octet-stream" sparkle:edSignature="Utjgf5m76Zk1kA/VELGGtEYDa92BCA+PpN8bMWx7uRhSE2BSAfK5ud3A1fFR67aKehLaw1zvWZ8NdTdGvf+oDg=="/>
+        </item>
+    </channel>
+</rss>
