@@ -588,8 +588,11 @@ private struct MenuBarDemo: View {
     }
 
     private var statusItem: some View {
-        Image(systemName: "rectangle.dashed.badge.record")
-            .font(.system(size: 10))
+        Image("MenuBarIcon")
+            .renderingMode(.template)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: 11, height: 11)
             .foregroundStyle(open ? AnyShapeStyle(.white) : AnyShapeStyle(.primary.opacity(0.75)))
             .frame(width: 18, height: 16)
             .background(
