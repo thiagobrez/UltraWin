@@ -81,11 +81,41 @@ func resized(_ image: CGImage, to size: Int) -> CGImage {
 
 // MARK: - App icon artwork (1024 canvas, drawn in a y-up coordinate space)
 
-/// Draws the icon artwork. `full` = true fills the whole canvas (favicon /
-/// touch icon, where the platform applies its own mask and padding); false uses
-/// Apple's 1024 template (824 squircle, 100 px margin) and adds a drop shadow.
-/// `small` drops the stand and the corner handles and fattens everything, for
-/// the 16/32/64 px sizes that are rendered natively rather than downsampled.
+/// Colourful abstract wallpaper (soft blobs of saturated colour on black, in
+/// the spirit of a pro display's demo wallpaper). Drawn clipped to `path`.
+func drawWallpaper(_ ctx: CGContext, in r: CGRect, clip path: CGPath) {
+    ctx.saveGState()
+    ctx.addPath(path); ctx.clip()
+    ctx.setFillColor(rgb(0x2A0A6B)); ctx.fill(r)
+    // Painted back to front with normal blending so every colour stays
+    // saturated instead of adding up to white.
+    // (x, y) as fractions of the screen rect (y-up), radius as a fraction of its width
+    let blobs: [(CGFloat, CGFloat, CGFloat, UInt32)] = [
+        (0.05, 0.15, 0.55, 0x4A1DFF), // violet, bottom-left
+        (0.98, 0.20, 0.55, 0x00C2A8), // teal, bottom-right
+        (0.90, 0.95, 0.50, 0x0A84FF), // blue, top-right
+        (0.22, 0.95, 0.46, 0xFF1F6E), // magenta, top-left
+        (0.55, 0.05, 0.40, 0xFF5A1F), // orange-red, bottom-centre
+        (0.58, 0.62, 0.30, 0xFFB300), // amber, centre-right
+        (0.38, 0.48, 0.24, 0xFF3D2E), // red core, centre-left
+    ]
+    let cs = CGColorSpace(name: CGColorSpace.sRGB)!
+    for (fx, fy, fr, hex) in blobs {
+        let c = CGPoint(x: r.minX + fx * r.width, y: r.minY + fy * r.height)
+        let g = CGGradient(colorsSpace: cs, colors: [rgb(hex, 1), rgb(hex, 0.8), rgb(hex, 0)] as CFArray, locations: [0, 0.4, 1])!
+        ctx.drawRadialGradient(g, startCenter: c, startRadius: 0, endCenter: c, endRadius: fr * r.width, options: [])
+    }
+    ctx.restoreGState()
+}
+
+/// Draws the icon artwork: a pro-display-style monitor (silver rim, thin black
+/// bezel, silver neck rising from the bottom edge, no foot) showing a colourful
+/// wallpaper that is dimmed everywhere except inside the UltraWin frame.
+/// `full` = true fills the whole canvas (favicon / touch icon, where the
+/// platform applies its own mask and padding); false uses Apple's 1024 template
+/// (824 squircle, 100 px margin) and adds a drop shadow. `small` drops the
+/// corner handles and fattens everything, for the 16/32/64 px sizes that are
+/// rendered natively rather than downsampled.
 func drawAppIcon(_ ctx: CGContext, canvas: CGFloat, full: Bool, small: Bool = false) {
     let side: CGFloat = full ? canvas : canvas * 824 / 1024
     let inset = (canvas - side) / 2
@@ -93,93 +123,106 @@ func drawAppIcon(_ ctx: CGContext, canvas: CGFloat, full: Bool, small: Bool = fa
     let u = side / 824 // unit: 1 template px
     let mask = squircle(box, radius: 185.4 * u)
 
-    // 0. Drop shadow (only in template mode; the full-bleed variant is masked
-    //    by the platform, which would clip the shadow anyway).
+    // 0. Drop shadow (template mode only).
     if !full {
         ctx.saveGState()
         ctx.setShadow(offset: CGSize(width: 0, height: -10 * u), blur: 24 * u, color: rgb(0x000000, 0.35))
-        ctx.addPath(mask); ctx.setFillColor(rgb(0x141B2E)); ctx.fillPath()
+        ctx.addPath(mask); ctx.setFillColor(rgb(0x14161C)); ctx.fillPath()
         ctx.restoreGState()
     }
 
-    // 1. Background: navy → deep indigo, lit from the top.
+    // 1. Background: neutral graphite, lit from the top, so the display's
+    //    colours and the silver neck carry the icon.
     linearGradient(ctx, mask, from: CGPoint(x: box.midX, y: box.maxY), to: CGPoint(x: box.midX, y: box.minY),
-                   colors: [rgb(0x2C3A5E), rgb(0x1B2440), rgb(0x0F1526)], locations: [0, 0.55, 1])
-    // soft top-left radial sheen
-    radialGradient(ctx, mask, center: CGPoint(x: box.minX + side * 0.3, y: box.maxY - side * 0.05), radius: side * 0.9,
-                   colors: [rgb(0x6C8CFF, 0.22), rgb(0x6C8CFF, 0.0)])
+                   colors: [rgb(0x3A3F4C), rgb(0x1E212A), rgb(0x0C0D12)], locations: [0, 0.5, 1])
+    radialGradient(ctx, mask, center: CGPoint(x: box.midX, y: box.maxY), radius: side * 0.8,
+                   colors: [rgb(0xFFFFFF, 0.10), rgb(0xFFFFFF, 0.0)])
 
-    // 2. Ultrawide display: bezel + screen, centered slightly above middle.
-    let screenW = (small ? 700 : 660) * u, screenH = (small ? 330 : 296) * u
-    let screenRect = CGRect(x: box.midX - screenW / 2, y: box.midY - screenH / 2 + (small ? 0 : 26) * u, width: screenW, height: screenH)
-    let bezelRect = screenRect.insetBy(dx: -24 * u, dy: -24 * u)
+    // Geometry. The display spans almost the whole squircle; the neck comes up
+    // from the bottom edge and disappears behind it.
+    let bodyW = (small ? 768 : 752) * u, bodyH = (small ? 470 : 446) * u
+    let bodyRect = CGRect(x: box.midX - bodyW / 2, y: box.midY - bodyH / 2 + (small ? 50 : 56) * u, width: bodyW, height: bodyH)
+    let rim = (small ? 10 : 6) * u, bezel = (small ? 22 : 16) * u
+    let bezelRect = bodyRect.insetBy(dx: rim, dy: rim)
+    let screenRect = bezelRect.insetBy(dx: bezel, dy: bezel)
+    let bodyR = 30 * u
 
-    // stand (behind the bezel) — dropped at small sizes where it turns to mush
-    if !small {
-        let neck = CGRect(x: box.midX - 34 * u, y: bezelRect.minY - 46 * u, width: 68 * u, height: 50 * u)
-        let base = CGRect(x: box.midX - 140 * u, y: bezelRect.minY - 62 * u, width: 280 * u, height: 22 * u)
-        ctx.saveGState()
-        ctx.setShadow(offset: CGSize(width: 0, height: -6 * u), blur: 16 * u, color: rgb(0x000000, 0.45))
-        ctx.setFillColor(rgb(0x0B1020))
-        ctx.addPath(rounded(base, 11 * u)); ctx.fillPath()
-        ctx.addRect(neck); ctx.fillPath()
-        ctx.restoreGState()
-        linearGradient(ctx, rounded(base, 11 * u), from: CGPoint(x: 0, y: base.maxY), to: CGPoint(x: 0, y: base.minY),
-                       colors: [rgb(0x4A587C), rgb(0x232C46)])
-        linearGradient(ctx, CGPath(rect: neck, transform: nil), from: CGPoint(x: neck.minX, y: 0), to: CGPoint(x: neck.maxX, y: 0),
-                       colors: [rgb(0x1C2338), rgb(0x2E3853), rgb(0x1C2338)])
-    }
-
-    // bezel with drop shadow
     ctx.saveGState()
-    ctx.setShadow(offset: CGSize(width: 0, height: -14 * u), blur: 36 * u, color: rgb(0x000000, 0.55))
-    ctx.setFillColor(rgb(0x0B1020)); ctx.addPath(rounded(bezelRect, 40 * u)); ctx.fillPath()
-    ctx.restoreGState()
-    linearGradient(ctx, rounded(bezelRect, 40 * u), from: CGPoint(x: 0, y: bezelRect.maxY), to: CGPoint(x: 0, y: bezelRect.minY),
-                   colors: [rgb(0x1E2640), rgb(0x0B1020)])
-    // bezel rim highlight
+    ctx.addPath(mask); ctx.clip()
+
+    // 2. Silver neck.
+    let neckW = (small ? 200 : 168) * u
+    let neck = CGRect(x: box.midX - neckW / 2, y: box.minY - 10 * u, width: neckW, height: bodyRect.midY - box.minY)
+    let neckPath = CGPath(rect: neck, transform: nil)
     ctx.saveGState()
-    ctx.addPath(rounded(bezelRect.insetBy(dx: 1.5 * u, dy: 1.5 * u), 39 * u))
-    ctx.setStrokeColor(rgb(0xFFFFFF, 0.10)); ctx.setLineWidth(3 * u); ctx.strokePath()
+    ctx.setShadow(offset: CGSize(width: 0, height: -4 * u), blur: 30 * u, color: rgb(0x000000, 0.55))
+    ctx.setFillColor(rgb(0xC9CCD1)); ctx.addPath(neckPath); ctx.fillPath()
     ctx.restoreGState()
+    linearGradient(ctx, neckPath, from: CGPoint(x: neck.minX, y: 0), to: CGPoint(x: neck.maxX, y: 0),
+                   colors: [rgb(0x8B8F97), rgb(0xD9DBDF), rgb(0xF6F7F8), rgb(0xD2D4D9), rgb(0x858991)],
+                   locations: [0, 0.18, 0.5, 0.82, 1])
+    // the neck darkens towards the bottom edge of the icon
+    linearGradient(ctx, neckPath, from: CGPoint(x: 0, y: bodyRect.minY), to: CGPoint(x: 0, y: box.minY),
+                   colors: [rgb(0x000000, 0.0), rgb(0x000000, 0.28)])
 
-    // screen surface: the "dimmed" desktop outside the shared region
-    let screenPath = rounded(screenRect, 22 * u)
-    linearGradient(ctx, screenPath, from: CGPoint(x: screenRect.minX, y: screenRect.maxY), to: CGPoint(x: screenRect.maxX, y: screenRect.minY),
-                   colors: [rgb(0x2A3554), rgb(0x1A2340)])
+    // 3. Display body: silver aluminium rim, with a drop shadow onto the neck.
+    let bodyPath = rounded(bodyRect, bodyR)
+    ctx.saveGState()
+    ctx.setShadow(offset: CGSize(width: 0, height: -16 * u), blur: 36 * u, color: rgb(0x000000, 0.65))
+    ctx.setFillColor(rgb(0xB9BCC2)); ctx.addPath(bodyPath); ctx.fillPath()
+    ctx.restoreGState()
+    linearGradient(ctx, bodyPath, from: CGPoint(x: 0, y: bodyRect.maxY), to: CGPoint(x: 0, y: bodyRect.minY),
+                   colors: [rgb(0xF4F5F7), rgb(0xB4B7BD), rgb(0x8E9299)], locations: [0, 0.5, 1])
+    // black glass bezel
+    ctx.setFillColor(rgb(0x050506)); ctx.addPath(rounded(bezelRect, bodyR - rim)); ctx.fillPath()
 
-    // 3. Selected region: bright 16:9 rectangle, white frame, corner handles.
-    let regW = (small ? 360 : 320) * u, regH = regW * 9 / 16
+    // 4. Screen: wallpaper, then a dark overlay everywhere except the region.
+    let screenPath = rounded(screenRect, max(bodyR - rim - bezel, 4 * u))
+    drawWallpaper(ctx, in: screenRect, clip: screenPath)
+
+    let regW = (small ? 400 : 372) * u, regH = regW * 9 / 16
     let regRect = CGRect(x: screenRect.midX - regW / 2, y: screenRect.midY - regH / 2, width: regW, height: regH)
-    let regPath = rounded(regRect, 14 * u)
-    // glow
+    let regPath = rounded(regRect, 10 * u)
+
     ctx.saveGState()
-    ctx.setShadow(offset: .zero, blur: 44 * u, color: rgb(0x3D9BFF, 0.75))
-    ctx.setFillColor(rgb(0x0A84FF)); ctx.addPath(regPath); ctx.fillPath()
+    ctx.addPath(screenPath); ctx.clip()
+    ctx.addRect(screenRect); ctx.addPath(regPath); ctx.clip(using: .evenOdd)
+    ctx.setFillColor(rgb(0x05060C, 0.62)); ctx.fill(screenRect)
     ctx.restoreGState()
-    linearGradient(ctx, regPath, from: CGPoint(x: regRect.minX, y: regRect.maxY), to: CGPoint(x: regRect.maxX, y: regRect.minY),
-                   colors: [rgb(0x7FD1FF), rgb(0x2E9BFF), rgb(0x0A6CFF)], locations: [0, 0.5, 1])
-    // frame
+
+    // 5. UltraWin frame: white stroke + corner handles, soft glow.
+    let frameW = (small ? 18 : 9) * u
+    let framePath = rounded(regRect.insetBy(dx: -frameW / 2, dy: -frameW / 2), 14 * u)
     ctx.saveGState()
-    let frameW = (small ? 16 : 9) * u
-    ctx.addPath(rounded(regRect.insetBy(dx: -frameW / 2, dy: -frameW / 2), 18 * u))
-    ctx.setStrokeColor(rgb(0xFFFFFF)); ctx.setLineWidth(frameW); ctx.strokePath()
+    ctx.addPath(screenPath); ctx.clip()
+    ctx.setShadow(offset: .zero, blur: 26 * u, color: rgb(0xFFFFFF, 0.55))
+    ctx.addPath(framePath); ctx.setStrokeColor(rgb(0xFFFFFF)); ctx.setLineWidth(frameW); ctx.strokePath()
     ctx.restoreGState()
-    // corner handles (large sizes only)
     if !small {
         ctx.saveGState()
-        ctx.setShadow(offset: CGSize(width: 0, height: -2 * u), blur: 6 * u, color: rgb(0x000000, 0.35))
+        ctx.setShadow(offset: CGSize(width: 0, height: -2 * u), blur: 6 * u, color: rgb(0x000000, 0.45))
         ctx.setFillColor(rgb(0xFFFFFF))
-        let hr = 15 * u
-        for (cx, cy) in [(regRect.minX - 4 * u, regRect.minY - 4 * u), (regRect.maxX + 4 * u, regRect.minY - 4 * u),
-                         (regRect.minX - 4 * u, regRect.maxY + 4 * u), (regRect.maxX + 4 * u, regRect.maxY + 4 * u)] {
+        let hr = 15 * u, o = frameW / 2
+        for (cx, cy) in [(regRect.minX - o, regRect.minY - o), (regRect.maxX + o, regRect.minY - o),
+                         (regRect.minX - o, regRect.maxY + o), (regRect.maxX + o, regRect.maxY + o)] {
             ctx.addEllipse(in: CGRect(x: cx - hr, y: cy - hr, width: 2 * hr, height: 2 * hr))
         }
         ctx.fillPath()
         ctx.restoreGState()
     }
 
-    // 4. Squircle top-edge highlight + rim stroke for depth.
+    // glass reflection across the top-left of the screen
+    ctx.saveGState()
+    ctx.addPath(screenPath); ctx.clip()
+    let gl = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
+                        colors: [rgb(0xFFFFFF, 0.10), rgb(0xFFFFFF, 0.0)] as CFArray, locations: [0, 1])!
+    ctx.drawLinearGradient(gl, start: CGPoint(x: screenRect.minX, y: screenRect.maxY),
+                           end: CGPoint(x: screenRect.minX + screenRect.width * 0.35, y: screenRect.minY), options: [])
+    ctx.restoreGState()
+
+    ctx.restoreGState() // mask clip
+
+    // 6. Squircle top-edge highlight + rim stroke for depth.
     ctx.saveGState()
     ctx.addPath(mask); ctx.clip()
     let hl = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
