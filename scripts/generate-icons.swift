@@ -140,8 +140,8 @@ func drawAppIcon(_ ctx: CGContext, canvas: CGFloat, full: Bool, small: Bool = fa
 
     // Geometry. The display spans almost the whole squircle; the neck comes up
     // from the bottom edge and disappears behind it.
-    let bodyW = (small ? 768 : 752) * u, bodyH = (small ? 470 : 446) * u
-    let bodyRect = CGRect(x: box.midX - bodyW / 2, y: box.midY - bodyH / 2 + (small ? 50 : 56) * u, width: bodyW, height: bodyH)
+    let bodyW = (small ? 768 : 752) * u, bodyH = (small ? 480 : 466) * u
+    let bodyRect = CGRect(x: box.midX - bodyW / 2, y: box.midY - bodyH / 2 + (small ? 24 : 22) * u, width: bodyW, height: bodyH)
     let rim = (small ? 10 : 6) * u, bezel = (small ? 22 : 16) * u
     let bezelRect = bodyRect.insetBy(dx: rim, dy: rim)
     let screenRect = bezelRect.insetBy(dx: bezel, dy: bezel)
@@ -151,7 +151,7 @@ func drawAppIcon(_ ctx: CGContext, canvas: CGFloat, full: Bool, small: Bool = fa
     ctx.addPath(mask); ctx.clip()
 
     // 2. Silver neck.
-    let neckW = (small ? 200 : 168) * u
+    let neckW = (small ? 260 : 228) * u
     let neck = CGRect(x: box.midX - neckW / 2, y: box.minY - 10 * u, width: neckW, height: bodyRect.midY - box.minY)
     let neckPath = CGPath(rect: neck, transform: nil)
     ctx.saveGState()
