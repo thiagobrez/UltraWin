@@ -1,5 +1,11 @@
 # ultrawin
 
+## 1.2.0
+
+### Minor Changes
+
+- 04346e0: New app icon and menu bar icon.
+
 ## 1.1.0
 
 ### Minor Changes
