@@ -10,10 +10,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.app = app
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         super.init()
-        statusItem.button?.image = NSImage(
-            systemSymbolName: "rectangle.dashed.badge.record",
-            accessibilityDescription: "UltraWin"
-        )
+        let icon = NSImage(named: "MenuBarIcon")
+        icon?.isTemplate = true // the catalog already says template; belt and braces
+        icon?.accessibilityDescription = "UltraWin"
+        statusItem.button?.image = icon
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu

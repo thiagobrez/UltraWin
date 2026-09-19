@@ -47,6 +47,17 @@ Commits without changesets never trigger a release.
 - `UltraWin.xcodeproj` is gitignored; CI always runs `xcodegen generate`
   first. Run it locally too before archiving by hand.
 
+## Icons
+
+`swift scripts/generate-icons.swift` regenerates every icon artefact from a
+single design source: the `AppIcon.appiconset` PNGs, the `MenuBarIcon.pdf`
+menu bar template, and `docs/assets/` (`app-icon-{light,dark}.png`,
+`apple-touch-icon.png`, `favicon-{16,32}.png`, `og-image.png`). Never edit
+those files by hand — change the script and re-run it, then commit the
+outputs. The run is deterministic, so re-running it without changing the
+script leaves the working tree clean; a different macOS release may still
+reflow the PNG bytes.
+
 ## Automatic updates (Sparkle)
 
 Builds self-update via [Sparkle](https://sparkle-project.org): the app polls
